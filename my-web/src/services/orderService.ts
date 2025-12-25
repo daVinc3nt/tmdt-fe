@@ -17,6 +17,27 @@ export interface OrderRequest {
   paymentMethod: string;
 }
 
+// Payment DTOs for VietQR
+export interface PaymentRequestDTO {
+  userId: number;
+  orderId: number;
+  amount: number;
+  currency?: string; // default VND
+  description?: string;
+}
+
+export interface PaymentResponseDTO {
+  paymentId?: number;
+  orderId: number;
+  amount: number;
+  status: 'PENDING' | 'COMPLETED' | 'NOT_FOUND' | 'ERROR';
+  message?: string;
+  qrImageUrl?: string;
+  paymentRef?: string;
+  sepayTransactionRef?: string;
+  verifiedAt?: string;
+}
+
 const orderService = {
   // Gửi đơn hàng lên Backend
   createOrder: async (data: any) => {
@@ -63,6 +84,19 @@ const orderService = {
   // Lấy lịch sử đơn hàng từ Backend
   getOrdersByUserId: (userId: number) => {
     return axiosClient.get(`/api/order/${userId}`);
+  },
+
+  // VietQR payment APIs
+  createVietQRPayment: async (paymentRequest: PaymentRequestDTO): Promise<PaymentResponseDTO> => {
+    const response = await axiosClient.post('/payments/vietqr', paymentRequest);
+    return response.data;
+  },
+
+  verifyPayment: async (orderId: number): Promise<PaymentResponseDTO> => {
+    const response = await axiosClient.get('/payments/verify', {
+      params: { orderId }
+    });
+    return response.data;
   }
 };
 

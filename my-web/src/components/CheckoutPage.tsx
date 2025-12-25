@@ -1,6 +1,7 @@
 import { useCart, useOrder } from '@/hooks/useCartAndOrder';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useToast } from '../context/ToastContext';
+import orderService, { type PaymentRequestDTO, type PaymentResponseDTO } from '../services/orderService';
 
 interface CheckoutPageProps {
     userId: number;
@@ -22,6 +23,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
     const [orderLoading, setOrderLoading] = useState(false);
     const [orderError, setOrderError] = useState<string | null>(null);
 
+    // VietQR payment states
+    const [paymentStep, setPaymentStep] = useState<'idle' | 'created' | 'pending' | 'completed' | 'failed'>('idle');
+    const [paymentResponse, setPaymentResponse] = useState<PaymentResponseDTO | null>(null);
+    const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+    const [pollingCount, setPollingCount] = useState(0);
+    const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     const totalAmount = cartItems.reduce((sum: any, item: any) => sum + item.totalPrice, 0);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -31,6 +39,63 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
             [name]: value
         }));
     };
+
+    // Poll payment status
+    const startPaymentPolling = (orderId: number) => {
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+        }
+
+        setPollingCount(0);
+        setPaymentStep('pending');
+
+        pollingIntervalRef.current = setInterval(async () => {
+            try {
+                const result = await orderService.verifyPayment(orderId);
+                setPollingCount(prev => prev + 1);
+
+                if (result.status === 'COMPLETED') {
+                    setPaymentStep('completed');
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    showSuccess('Payment successful! Your order is confirmed.', 'Payment completed');
+                    if (onOrderSuccess) {
+                        onOrderSuccess(orderId);
+                    }
+                } else if (result.status === 'ERROR' || result.status === 'NOT_FOUND') {
+                    setPaymentStep('failed');
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    showError(result.message || 'Payment failed. Please try again.', 'Payment failed');
+                }
+
+                // Timeout after ~2 minutes (40 polls * 3 seconds)
+                if (pollingCount >= 40) {
+                    setPaymentStep('failed');
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    showError('Payment timeout. Please check your payment and try again.', 'Payment timeout');
+                }
+            } catch (err: any) {
+                console.error('Payment polling error:', err);
+            }
+        }, 3000);
+    };
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,15 +123,32 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
 
             if (result && result.id) {
                 await refreshCart();
+                setCreatedOrderId(result.id);
 
-                if (onOrderSuccess) {
-                    onOrderSuccess(result.id);
+                // If VietQR selected, create payment and show QR
+                if (formData.paymentMethod === 'BANK_TRANSFER') {
+                    const paymentRequest: PaymentRequestDTO = {
+                        userId,
+                        orderId: result.id,
+                        amount: totalAmount,
+                        currency: 'VND',
+                        description: `Order #${result.id} payment`
+                    };
+
+                    const paymentRes = await orderService.createVietQRPayment(paymentRequest);
+                    setPaymentResponse(paymentRes);
+                    setPaymentStep('created');
+                    startPaymentPolling(result.id);
+                } else {
+                    // For other payment methods, show success immediately
+                    showSuccess(
+                        `Order #${result.id} has been created successfully. Total: ${result.totalPrice?.toLocaleString()} đ`,
+                        'Order created'
+                    );
+                    if (onOrderSuccess) {
+                        onOrderSuccess(result.id);
+                    }
                 }
-
-                showSuccess(
-                    `Order #${result.id} has been created successfully. Total: ${result.totalPrice?.toLocaleString()} đ`,
-                    'Order created'
-                );
             } else {
                 const msg = result?.message || 'Failed to create order.';
                 setOrderError(msg);
@@ -167,7 +249,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                                         onChange={handleInputChange}
                                         className="mr-2"
                                     />
-                                    <span>Bank transfer</span>
+                                    <span>VietQR (Bank Transfer)</span>
                                 </label>
                                 <label className="flex items-center">
                                     <input
@@ -191,12 +273,87 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
 
                         <button
                             type="submit"
-                            disabled={orderLoading || loading}
+                            disabled={orderLoading || loading || paymentStep === 'created' || paymentStep === 'pending'}
                             className="w-full bg-blue-500 text-white py-3 rounded font-semibold hover:bg-blue-600 disabled:bg-gray-400"
                         >
-                            {orderLoading || loading ? 'Processing...' : 'Place order'}
+                            {orderLoading || loading ? 'Processing...' :
+                                paymentStep === 'created' || paymentStep === 'pending' ? 'Payment in progress...' :
+                                    'Place order'}
                         </button>
                     </form>
+
+                    {/* VietQR Payment UI */}
+                    {(paymentStep === 'created' || paymentStep === 'pending') && paymentResponse && (
+                        <div className="mt-6 bg-white p-6 rounded-lg shadow">
+                            <h2 className="text-lg font-semibold mb-4">VietQR Payment</h2>
+
+                            <div className="text-center">
+                                {paymentResponse.qrImageUrl && (
+                                    <div className="mb-4">
+                                        <img
+                                            src={paymentResponse.qrImageUrl}
+                                            alt="VietQR Payment"
+                                            className="mx-auto max-w-xs border-2 border-gray-300 rounded"
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="mb-4">
+                                    <p className="text-sm text-gray-600 mb-2">Scan the QR code above to pay</p>
+                                    <p className="font-semibold">Amount: {paymentResponse.amount?.toLocaleString()} đ</p>
+                                    {paymentResponse.paymentRef && (
+                                        <p className="text-sm text-gray-500 mt-1">Reference: {paymentResponse.paymentRef}</p>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-center space-x-2">
+                                    <div className={`w-3 h-3 rounded-full ${paymentStep === 'pending' ? 'bg-yellow-500 animate-pulse' : 'bg-blue-500'}`}></div>
+                                    <span className="text-sm">
+                                        {paymentStep === 'pending' ? 'Waiting for payment...' : 'Payment QR generated'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment Completed UI */}
+                    {paymentStep === 'completed' && (
+                        <div className="mt-6 bg-green-50 border border-green-200 p-6 rounded-lg">
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-lg font-semibold text-green-800 mb-2">Payment Successful!</h3>
+                                <p className="text-green-600">Your order has been confirmed and will be processed soon.</p>
+                                {createdOrderId && (
+                                    <p className="text-sm text-gray-600 mt-2">Order ID: #{createdOrderId}</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment Failed UI */}
+                    {paymentStep === 'failed' && (
+                        <div className="mt-6 bg-red-50 border border-red-200 p-6 rounded-lg">
+                            <div className="text-center">
+                                <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-lg font-semibold text-red-800 mb-2">Payment Failed</h3>
+                                <p className="text-red-600">The payment could not be completed. Please try again.</p>
+                                <button
+                                    onClick={() => setPaymentStep('idle')}
+                                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-white p-6 rounded-lg shadow h-fit">

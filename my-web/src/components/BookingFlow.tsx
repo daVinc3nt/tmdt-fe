@@ -71,6 +71,93 @@ export function BookingFlow({ onBack, bookingContext }: BookingFlowProps) {
 
   const [bookingComplete, setBookingComplete] = useState(false);
 
+  // VietQR payment states
+  const [paymentStep, setPaymentStep] = useState<'idle' | 'created' | 'pending' | 'completed' | 'failed'>('idle');
+  const [paymentResponse, setPaymentResponse] = useState<PaymentResponseDTO | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll payment status
+  const startPaymentPolling = (orderId: number) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    setPollingCount(0);
+    setPaymentStep('pending');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const result = await orderService.verifyPayment(orderId);
+        setPollingCount(prev => prev + 1);
+
+        if (result.status === 'COMPLETED') {
+          setPaymentStep('completed');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          showSuccess('Payment successful! Creating your booking...', 'Payment completed');
+          // Create booking after successful payment
+          await createBookingAfterPayment();
+        } else if (result.status === 'ERROR' || result.status === 'NOT_FOUND') {
+          setPaymentStep('failed');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          showError(result.message || 'Payment failed. Please try again.', 'Payment failed');
+        }
+
+        // Timeout after ~2 minutes (40 polls * 3 seconds)
+        if (pollingCount >= 40) {
+          setPaymentStep('failed');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          showError('Payment timeout. Please check your payment and try again.', 'Payment timeout');
+        }
+      } catch (err: any) {
+        console.error('Payment polling error:', err);
+      }
+    }, 3000);
+  };
+
+  // Create booking after successful payment
+  const createBookingAfterPayment = async () => {
+    const traineeIdFromToken = getUserIdFromToken(token);
+    if (!traineeIdFromToken) {
+      showError("Unable to verify user. Please sign in again.", "Authentication");
+      return;
+    }
+
+    try {
+      await bookingService.createBooking({
+        traineeId: traineeIdFromToken,
+        packageId,
+        date: buildBookingDateISO(),
+        totalAmount: price
+      });
+
+      showSuccess("Your booking has been created successfully.", "Booking confirmed");
+      setBookingComplete(true);
+    } catch (error) {
+      console.error("Booking failed after payment:", error);
+      showError("Booking failed. Please contact support.", "Booking failed");
+    }
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handlePayment = async () => {
     if (!selectedDate || !selectedTime) {
       showError("Please select a date and time.", "Missing information");
@@ -90,18 +177,42 @@ export function BookingFlow({ onBack, bookingContext }: BookingFlowProps) {
     }
 
     try {
-      await bookingService.createBooking({
-        traineeId: traineeIdFromToken,
-        packageId,
-        date: buildBookingDateISO(),
-        totalAmount: price
-      });
+      // Create a temporary order for the booking payment
+      const orderData = {
+        userId: traineeIdFromToken,
+        paymentMethod: 'BANK_TRANSFER',
+        shippingAddress: 'PT Booking - Digital Service',
+        items: [{
+          productId: packageId,
+          quantity: 1,
+          price: price
+        }]
+      };
 
-      showSuccess("Your booking has been created successfully.", "Booking confirmed");
-      setBookingComplete(true);
+      const orderResult = await orderService.createOrder(orderData);
+
+      if (orderResult && orderResult.id) {
+        setCreatedOrderId(orderResult.id);
+
+        // Create VietQR payment for the order
+        const paymentRequest: PaymentRequestDTO = {
+          userId: traineeIdFromToken,
+          orderId: orderResult.id,
+          amount: price,
+          currency: 'VND',
+          description: `PT Booking with ${trainerName} - ${selectedDate} ${selectedTime}`
+        };
+
+        const paymentRes = await orderService.createVietQRPayment(paymentRequest);
+        setPaymentResponse(paymentRes);
+        setPaymentStep('created');
+        startPaymentPolling(orderResult.id);
+      } else {
+        showError('Failed to create order for payment.', 'Order creation failed');
+      }
     } catch (error) {
-      console.error("Booking failed FULL:", error);
-      showError("Booking failed. Please try again.", "Booking failed");
+      console.error("Payment initiation failed:", error);
+      showError("Payment initiation failed. Please try again.", "Payment failed");
     }
   };
 
@@ -287,15 +398,84 @@ export function BookingFlow({ onBack, bookingContext }: BookingFlowProps) {
 
                 <Button
                   onClick={handlePayment}
+                  disabled={paymentStep === 'created' || paymentStep === 'pending'}
                   className="w-full bg-primary text-white rounded-[12px]"
                 >
-                  Pay Now
+                  {paymentStep === 'created' || paymentStep === 'pending' ? 'Payment in progress...' : 'Pay Now'}
                 </Button>
 
                 <p className="text-xs text-muted-foreground text-center mt-4">
                   By confirming, you agree to our terms and conditions
                 </p>
               </Card>
+
+              {/* VietQR Payment UI */}
+              {(paymentStep === 'created' || paymentStep === 'pending') && paymentResponse && (
+                <Card className="p-6 border-border rounded-[20px] mt-6">
+                  <h3 className="text-foreground mb-4">VietQR Payment</h3>
+
+                  <div className="text-center">
+                    {paymentResponse.qrImageUrl && (
+                      <div className="mb-4">
+                        <img
+                          src={paymentResponse.qrImageUrl}
+                          alt="VietQR Payment"
+                          className="mx-auto max-w-xs border-2 border-gray-300 rounded"
+                        />
+                      </div>
+                    )}
+
+                    <div className="mb-4">
+                      <p className="text-sm text-muted-foreground mb-2">Scan the QR code above to pay</p>
+                      <p className="font-semibold">Amount: {paymentResponse.amount?.toLocaleString()} đ</p>
+                      {paymentResponse.paymentRef && (
+                        <p className="text-sm text-muted-foreground mt-1">Reference: {paymentResponse.paymentRef}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${paymentStep === 'pending' ? 'bg-yellow-500 animate-pulse' : 'bg-blue-500'}`}></div>
+                      <span className="text-sm">
+                        {paymentStep === 'pending' ? 'Waiting for payment...' : 'Payment QR generated'}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              {/* Payment Completed UI */}
+              {paymentStep === 'completed' && (
+                <Card className="p-6 border-border rounded-[20px] mt-6">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-green-800 mb-2">Payment Successful!</h3>
+                    <p className="text-green-600">Your booking is being confirmed...</p>
+                  </div>
+                </Card>
+              )}
+
+              {/* Payment Failed UI */}
+              {paymentStep === 'failed' && (
+                <Card className="p-6 border-border rounded-[20px] mt-6">
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-red-800 mb-2">Payment Failed</h3>
+                    <p className="text-red-600">The payment could not be completed. Please try again.</p>
+                    <Button
+                      onClick={() => setPaymentStep('idle')}
+                      className="mt-4 bg-red-500 text-white rounded-[12px]"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                </Card>
+              )}
             </div>
           </div>
         </div>

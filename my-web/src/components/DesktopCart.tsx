@@ -12,6 +12,26 @@ import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
+// Helper function to decode JWT and get userId
+const getUserIdFromToken = (token: string | null): number | null => {
+  if (!token) return null;
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const decoded = JSON.parse(jsonPayload);
+    return decoded.userId || null;
+  } catch (error) {
+    console.error("JWT decode error:", error);
+    return null;
+  }
+};
+
 interface DesktopCartProps {
   cartItems: any[];
   onBack: () => void;
@@ -22,8 +42,7 @@ interface DesktopCartProps {
 }
 
 export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, onRemoveItem, onClearCart }: DesktopCartProps) {
-  // FIX: Ép kiểu linh hoạt để lấy ID từ AuthContext
-  const { user } = useAuth() as { user: any | null };
+  const { token, user } = useAuth();
   const { showError, showSuccess } = useToast();
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'checkout'>('cart');
   const [isQRPage, setIsQRPage] = useState(false);
@@ -39,11 +58,11 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
   // --- FETCH ORDER HISTORY ---
   useEffect(() => {
     const fetchOrderHistory = async () => {
-      // Đảm bảo user.id tồn tại (đã được giải mã từ token)
-      if (!user?.id) return;
+      const userId = getUserIdFromToken(token);
+      if (!userId) return;
       try {
         setLoadingHistory(true);
-        const response = await orderService.getOrdersByUserId(user.id);
+        const response = await orderService.getOrdersByUserId(userId);
         const data = (response as any).data || response;
         setOrderHistory(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -53,7 +72,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
       }
     };
     fetchOrderHistory();
-  }, [user?.id, checkoutStep]);
+  }, [token, checkoutStep]);
 
   // --- COUNTDOWN TIMER ---
   const [timeLeft, setTimeLeft] = useState(600);
@@ -88,15 +107,17 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
       return;
     }
 
-    if (!user) {
-      showError("We couldn't find a valid login session. Please sign in again.", "Authentication");
+    // Get userId from JWT token
+    const userId = getUserIdFromToken(token);
+    if (!userId) {
+      showError("Unable to verify user. Please sign in again.", "Authentication");
       return;
     }
 
     setIsLoading(true);
     try {
       const orderRequest = {
-        userId: user.id,
+        userId,
         items: cartItems.map(item => ({
           productId: item.id,
           quantity: item.quantity,
