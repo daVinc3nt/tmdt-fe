@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { SEO } from "./components/SEO";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { BookingFlow } from "./components/BookingFlow";
 import { DesktopAbout } from "./components/DesktopAbout";
@@ -458,6 +459,7 @@ const RootRoute = () => {
 export default function App() {
   return (
     <BrowserRouter>
+      <SEO />
       <AuthProvider>
         <Routes>
           <Route path="/" element={<RootRoute />} />
