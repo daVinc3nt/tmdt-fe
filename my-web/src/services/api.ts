@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io";
+const API_BASE_URL = "https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io/api";
 
 export const apiCall = async (
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
