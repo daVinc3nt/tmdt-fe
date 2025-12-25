@@ -11,12 +11,17 @@ export const apiCall = async (
 ): Promise<any> => {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Get token from localStorage
+  const token = localStorage.getItem('accessToken');
+
   try {
     const options: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
+      mode: 'cors', // Ensure CORS is handled
     };
 
     if (data && (method === 'POST' || method === 'PUT')) {
@@ -24,9 +29,12 @@ export const apiCall = async (
     }
 
     const response = await fetch(url, options);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({})); // Handle empty response
 
     if (!response.ok) {
+      if (response.status === 403) {
+        console.error("403 Forbidden - Check Token:", token);
+      }
       throw new Error(result.message || `Request failed: ${response.status}`);
     }
 

@@ -1,5 +1,5 @@
-import { ArrowLeft, Banknote, Clock, Loader2, MapPin, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Banknote, Check, Clock, Loader2, MapPin, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import orderService from "../services/orderService";
@@ -41,6 +41,80 @@ interface DesktopCartProps {
   onClearCart: () => void;
 }
 
+function PaymentHistoryList() {
+  const { token } = useAuth();
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      const userId = getUserIdFromToken(token);
+      if (!userId) return;
+      try {
+        setLoading(true);
+        const data = await orderService.getPaymentHistory(userId);
+        setPayments(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to fetch payment history:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPayments();
+  }, [token]);
+
+  if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-10 h-10 text-orange-500" /></div>;
+  if (payments.length === 0) return <div className="text-center p-20 text-muted-foreground">No payment history found.</div>;
+
+  return (
+    <div className="space-y-4">
+      {payments.map((payment) => (
+        <Card key={payment.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-lg text-zinc-800">Payment #{payment.id}</span>
+                <Badge variant={payment.status === 'COMPLETED' ? 'default' : 'destructive'}
+                  className={payment.status === 'COMPLETED' ? "bg-green-500 hover:bg-green-600" : "bg-yellow-500 hover:bg-yellow-600 text-black"}>
+                  {payment.status}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {new Date(payment.createdAt || Date.now()).toLocaleString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-xl text-orange-600">
+                {payment.amount?.toLocaleString()} {payment.currency}
+              </span>
+              <p className="text-xs text-muted-foreground uppercase">{payment.paymentMethod}</p>
+            </div>
+          </div>
+
+          <div className="bg-zinc-50 p-4 rounded-lg text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Order Ref:</span>
+              <span className="font-medium">#{payment.order?.id || 'N/A'}</span>
+            </div>
+            {payment.paymentRef && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment Ref:</span>
+                <span className="font-mono text-xs">{payment.paymentRef}</span>
+              </div>
+            )}
+            {payment.sepayTransactionRef && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">SePay Trans ID:</span>
+                <span className="font-mono text-xs">{payment.sepayTransactionRef}</span>
+              </div>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, onRemoveItem, onClearCart }: DesktopCartProps) {
   const { token, user } = useAuth();
   const { showError, showSuccess } = useToast();
@@ -55,15 +129,15 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // --- FETCH ORDER HISTORY ---
+  // --- FETCH ORDER HISTORY (Now using Payment History as source based on user request) ---
   useEffect(() => {
     const fetchOrderHistory = async () => {
       const userId = getUserIdFromToken(token);
       if (!userId) return;
       try {
         setLoadingHistory(true);
-        const response = await orderService.getOrdersByUserId(userId);
-        const data = (response as any).data || response;
+        // User requested to use payment history API for order history
+        const data = await orderService.getPaymentHistory(userId);
         setOrderHistory(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch order history:", error);
@@ -100,6 +174,63 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
   const tax = (subtotal - discount) * 0.08;
   const total = subtotal - discount + shipping + tax;
 
+  // VietQR payment states
+  const [paymentStep, setPaymentStep] = useState<'idle' | 'created' | 'pending' | 'completed' | 'failed'>('idle');
+  const [paymentResponse, setPaymentResponse] = useState<any | null>(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const pollingIntervalRef = useRef<any | null>(null);
+
+  // Poll payment status
+  const startPaymentPolling = (orderId: number) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    setPollingCount(0);
+    setPaymentStep('pending');
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const result = await orderService.verifyPayment(orderId);
+        setPollingCount(prev => prev + 1);
+
+        if (result.status === 'COMPLETED') {
+          setPaymentStep('completed');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          showSuccess('Payment successful! Your order is confirmed.', 'Payment completed');
+          completeOrder();
+        } else if (result.status === 'ERROR' || result.status === 'NOT_FOUND') {
+          // Keep polling until timeout or explicit error
+          // setPaymentStep('failed');
+        }
+
+        // Timeout after ~2 minutes (40 polls * 3 seconds)
+        if (pollingCount >= 40) {
+          setPaymentStep('failed');
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          showError('Payment timeout. Please check your payment and try again.', 'Payment timeout');
+        }
+      } catch (err: any) {
+        console.error('Payment polling error:', err);
+      }
+    }, 3000);
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
   // --- SUBMIT ORDER TO API ---
   const handlePayment = async () => {
     if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
@@ -125,13 +256,30 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
         })),
         totalAmount: total,
         shippingAddress: `${shippingInfo.fullName} | ${shippingInfo.phone} | ${shippingInfo.address}`,
-        paymentMethod: paymentMethod.toUpperCase()
+        paymentMethod: paymentMethod === 'banking' ? 'BANK_TRANSFER' : 'COD' // Map 'banking' to 'BANK_TRANSFER'
       };
 
-      await orderService.createOrder(orderRequest as any);
+      // Create order
+      const orderResult = await orderService.createOrder(orderRequest as any);
 
-      if (paymentMethod === 'banking') {
+      if (paymentMethod === 'banking' && orderResult && orderResult.id) {
+        // Create VietQR payment
+        const paymentRequest = {
+          userId,
+          orderId: orderResult.id,
+          amount: total,
+          currency: 'VND',
+          description: `Order #${orderResult.id} payment`
+        };
+
+        const paymentRes = await orderService.createVietQRPayment(paymentRequest);
+        setPaymentResponse(paymentRes);
         setIsQRPage(true);
+        setPaymentStep('created');
+
+        // Start polling
+        startPaymentPolling(orderResult.id);
+
       } else {
         showSuccess("Your order has been placed successfully.", "Order placed");
         completeOrder();
@@ -141,7 +289,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
       if (error.response?.status === 403) {
         showError("Security error (403): your token may be expired or you don't have permission. Please sign in again.", "Authorization");
       } else {
-        showError("The system is busy. Please try again later.", "Order failed");
+        showError("The system is busy or order failed. Please try again later.", "Order failed");
       }
       console.error("Order API error:", error);
     } finally {
@@ -178,17 +326,54 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             </Button>
           </div>
           <div className="flex-1 p-12 flex flex-col items-center justify-center bg-white relative text-foreground">
-            <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" className="h-12 w-12 object-contain mb-2" />
-            <h2 className="text-xl font-bold mb-8 text-zinc-800">Scan MoMo QR to pay</h2>
-            <div className="p-4 border-2 border-zinc-100 rounded-2xl bg-white shadow-lg mb-6">
-              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=FitConnect_Payment_${total}`} alt="QR" className="w-48 h-48" />
-            </div>
-            <div className="flex items-center gap-3 text-sm text-zinc-500 mb-8">
-              <Loader2 className="w-4 h-4 animate-spin text-[#A50064]" /> <p>Waiting for confirmation...</p>
-            </div>
-            <Button className="w-full bg-[#A50064] hover:bg-[#820050] text-white py-7 rounded-xl font-bold text-lg" onClick={completeOrder}>
-              I have completed the transfer
-            </Button>
+            {paymentStep === 'completed' ? (
+              <div className="text-center">
+                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Check className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold mb-4 text-green-700">Payment Successful!</h2>
+                <p className="text-gray-500 mb-8">Your order has been confirmed.</p>
+                <Button className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-bold text-lg" onClick={completeOrder}>
+                  Continue Shopping
+                </Button>
+              </div>
+            ) : paymentStep === 'failed' ? (
+              <div className="text-center">
+                <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Trash2 className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold mb-4 text-red-700">Payment Failed</h2>
+                <p className="text-gray-500 mb-8">We couldn't verify your payment. Please try again or contact support.</p>
+                <Button className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-lg" onClick={() => setIsQRPage(false)}>
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <>
+                <img src="https://img.vietqr.io/image/970422-0943632239-compact2.png?amount=0" alt="VietQR" className="h-10 object-contain mb-4" />
+                <h2 className="text-xl font-bold mb-6 text-zinc-800">Scan VietQR to pay</h2>
+                <div className="p-4 border-2 border-zinc-100 rounded-2xl bg-white shadow-lg mb-6 relative">
+                  {paymentResponse?.qrImageUrl ? (
+                    <img src={paymentResponse.qrImageUrl} alt="QR" className="w-48 h-48 object-contain" />
+                  ) : (
+                    <div className="w-48 h-48 flex items-center justify-center bg-gray-100 rounded text-gray-400">Loading QR...</div>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-center gap-3 text-sm text-zinc-500 mb-6">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#A50064]" />
+                    <p>Waiting for payment...</p>
+                  </div>
+                  <p className="text-xs text-center max-w-xs">{paymentResponse?.description || 'Content'}</p>
+                </div>
+
+                <Button className="w-full bg-[#A50064] hover:bg-[#820050] text-white py-4 rounded-xl font-bold text-lg" onClick={completeOrder}>
+                  I have transferred
+                </Button>
+              </>
+            )}
+
           </div>
         </div>
       </div>
@@ -221,7 +406,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
                     <Banknote className="w-6 h-6 text-green-600" /> <div><p className="font-bold">COD</p><p className="text-xs text-muted-foreground">Cash on delivery</p></div>
                   </div>
                   <div className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'banking' ? 'border-orange-500 bg-orange-50' : 'border-zinc-200'}`} onClick={() => setPaymentMethod('banking')}>
-                    <QrCode className="w-6 h-6 text-[#A50064]" /> <div><p className="font-bold">MoMo QR</p><p className="text-xs text-muted-foreground">Pay via MoMo e-wallet</p></div>
+                    <QrCode className="w-6 h-6 text-[#A50064]" /> <div><p className="font-bold">VietQR Bank Transfer</p><p className="text-xs text-muted-foreground">Scan QR code to pay instantly</p></div>
                   </div>
                 </div>
               </Card>
@@ -264,6 +449,9 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             </TabsTrigger>
             <TabsTrigger value="history" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-orange-500 gap-2 p-4 text-base">
               <Clock className="w-4 h-4" /> Order history ({orderHistory.length})
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-orange-500 gap-2 p-4 text-base">
+              <Banknote className="w-4 h-4" /> Payment history
             </TabsTrigger>
           </TabsList>
 
@@ -317,29 +505,37 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             ) : orderHistory.length === 0 ? (
               <div className="text-center p-20 text-muted-foreground">You don't have any orders yet.</div>
             ) : (
-              orderHistory.map((order: any) => (
-                <Card key={order.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
+              orderHistory.map((payment: any) => (
+                <Card key={payment.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
                   <div className="flex justify-between mb-4">
                     <div className="flex flex-col">
-                      <span className="font-bold text-lg text-zinc-800">Order ID: #ORD-{order.id}</span>
-                      <span className="text-xs text-muted-foreground">Placed on: {new Date(order.orderDate || Date.now()).toLocaleDateString('en-US')}</span>
+                      <span className="font-bold text-lg text-zinc-800">Order ID: #{payment.order?.id}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Placed on: {new Date(payment.order?.orderDate || payment.createdAt || Date.now()).toLocaleDateString('en-US')}
+                      </span>
                     </div>
-                    <Badge className={order.status === 'CANCELLED' ? "bg-red-500" : "bg-green-500"}>{order.status}</Badge>
+                    <Badge className={payment.order?.status === 'CANCELLED' ? "bg-red-500" : "bg-green-500"}>
+                      {payment.order?.status || payment.status}
+                    </Badge>
                   </div>
                   <div className="flex gap-4 items-center border-t pt-4">
                     <div className="bg-orange-100 p-3 rounded-xl"><ShoppingBag className="w-6 h-6 text-orange-600" /></div>
                     <div className="flex-1">
                       <p className="font-medium">FitConnect order</p>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{order.shippingAddress}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-1">{payment.order?.shippingAddress || "N/A"}</p>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-orange-600 text-lg">{order.totalAmount?.toLocaleString()}đ</div>
-                      <p className="text-[10px] text-muted-foreground uppercase">{order.paymentMethod}</p>
+                      <div className="font-bold text-orange-600 text-lg">{payment.amount?.toLocaleString()} {payment.currency}</div>
+                      <p className="text-[10px] text-muted-foreground uppercase">{payment.paymentMethod}</p>
                     </div>
                   </div>
                 </Card>
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-4">
+            <PaymentHistoryList />
           </TabsContent>
 
         </Tabs>
