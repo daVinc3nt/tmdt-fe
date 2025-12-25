@@ -97,6 +97,11 @@ const orderService = {
       params: { orderId }
     });
     return response.data;
+  },
+
+  getPaymentHistory: async (userId: number): Promise<any[]> => {
+    const response = await axiosClient.get(`/payments/history/${userId}`);
+    return response.data;
   }
 };
 

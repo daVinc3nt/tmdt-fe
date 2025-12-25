@@ -1,5 +1,5 @@
-import { ArrowLeft, Banknote, Clock, Loader2, MapPin, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Banknote, Check, Clock, Loader2, MapPin, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import orderService from "../services/orderService";
@@ -43,6 +43,80 @@ interface DesktopCartProps {
   onClearCart: () => void;
 }
 
+function PaymentHistoryList() {
+  const { token } = useAuth();
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      const userId = getUserIdFromToken(token);
+      if (!userId) return;
+      try {
+        setLoading(true);
+        const data = await orderService.getPaymentHistory(userId);
+        setPayments(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to fetch payment history:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPayments();
+  }, [token]);
+
+  if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin w-10 h-10 text-orange-500" /></div>;
+  if (payments.length === 0) return <div className="text-center p-20 text-muted-foreground">No payment history found.</div>;
+
+  return (
+    <div className="space-y-4">
+      {payments.map((payment) => (
+        <Card key={payment.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-bold text-lg text-zinc-800">Payment #{payment.id}</span>
+                <Badge variant={payment.status === 'COMPLETED' ? 'default' : 'destructive'}
+                  className={payment.status === 'COMPLETED' ? "bg-green-500 hover:bg-green-600" : "bg-yellow-500 hover:bg-yellow-600 text-black"}>
+                  {payment.status}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {new Date(payment.createdAt || Date.now()).toLocaleString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="font-bold text-xl text-orange-600">
+                {payment.amount?.toLocaleString()} {payment.currency}
+              </span>
+              <p className="text-xs text-muted-foreground uppercase">{payment.paymentMethod}</p>
+            </div>
+          </div>
+
+          <div className="bg-zinc-50 p-4 rounded-lg text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Order Ref:</span>
+              <span className="font-medium">#{payment.order?.id || 'N/A'}</span>
+            </div>
+            {payment.paymentRef && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment Ref:</span>
+                <span className="font-mono text-xs">{payment.paymentRef}</span>
+              </div>
+            )}
+            {payment.sepayTransactionRef && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">SePay Trans ID:</span>
+                <span className="font-mono text-xs">{payment.sepayTransactionRef}</span>
+              </div>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, onRemoveItem, onClearCart }: DesktopCartProps) {
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -58,7 +132,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // --- FETCH ORDER HISTORY ---
+  // --- FETCH ORDER HISTORY (Now using Payment History as source based on user request) ---
   useEffect(() => {
     const fetchOrderHistory = async () => {
       const userId = getUserIdFromToken(token);
@@ -132,7 +206,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
         })),
         totalAmount: total,
         shippingAddress: `${shippingInfo.fullName} | ${shippingInfo.phone} | ${shippingInfo.address}`,
-        paymentMethod: paymentMethod.toUpperCase()
+        paymentMethod: paymentMethod === 'banking' ? 'BANK_TRANSFER' : 'COD' // Map 'banking' to 'BANK_TRANSFER'
       };
 
       const orderRes = await orderService.createOrder(orderRequest as any);
@@ -150,6 +224,11 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
         console.log("qrRes: ", qr);
         setVietQr(qr.data.qrImageUrl)
         setIsQRPage(true);
+        setPaymentStep('created');
+
+        // Start polling
+        startPaymentPolling(orderResult.id);
+
       } else {
         showSuccess("Your order has been placed successfully.", "Order placed");
         completeOrder();
@@ -159,7 +238,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
       if (error.response?.status === 403) {
         showError("Security error (403): your token may be expired or you don't have permission. Please sign in again.", "Authorization");
       } else {
-        showError("The system is busy. Please try again later.", "Order failed");
+        showError("The system is busy or order failed. Please try again later.", "Order failed");
       }
       console.error("Order API error:", error);
     } finally {
@@ -258,7 +337,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
                     <Banknote className="w-6 h-6 text-green-600" /> <div><p className="font-bold">COD</p><p className="text-xs text-muted-foreground">Cash on delivery</p></div>
                   </div>
                   <div className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'banking' ? 'border-orange-500 bg-orange-50' : 'border-zinc-200'}`} onClick={() => setPaymentMethod('banking')}>
-                    <QrCode className="w-6 h-6 text-[#A50064]" /> <div><p className="font-bold">MoMo QR</p><p className="text-xs text-muted-foreground">Pay via MoMo e-wallet</p></div>
+                    <QrCode className="w-6 h-6 text-[#A50064]" /> <div><p className="font-bold">VietQR Bank Transfer</p><p className="text-xs text-muted-foreground">Scan QR code to pay instantly</p></div>
                   </div>
                 </div>
               </Card>
@@ -301,6 +380,9 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             </TabsTrigger>
             <TabsTrigger value="history" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-orange-500 gap-2 p-4 text-base">
               <Clock className="w-4 h-4" /> Order history ({orderHistory.length})
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="rounded-none data-[state=active]:border-b-2 data-[state=active]:border-orange-500 gap-2 p-4 text-base">
+              <Banknote className="w-4 h-4" /> Payment history
             </TabsTrigger>
           </TabsList>
 
@@ -354,8 +436,8 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             ) : orderHistory.length === 0 ? (
               <div className="text-center p-20 text-muted-foreground">You don't have any orders yet.</div>
             ) : (
-              orderHistory.map((order: any) => (
-                <Card key={order.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
+              orderHistory.map((payment: any) => (
+                <Card key={payment.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
                   <div className="flex justify-between mb-4">
                     <div className="flex flex-col">
                       <span className="font-bold text-lg text-zinc-800">Order ID: #ORD-{order.order.id}</span>
@@ -377,6 +459,10 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
                 </Card>
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-4">
+            <PaymentHistoryList />
           </TabsContent>
 
         </Tabs>
