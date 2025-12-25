@@ -1,7 +1,10 @@
-import { X, Send, Paperclip, Image as ImageIcon, Smile } from "lucide-react";
+import { Image as ImageIcon, Paperclip, Send, Smile, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import chatService from "../services/chatService";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { useState } from "react";
 
 interface Message {
   id: number;
@@ -19,58 +22,92 @@ interface ChatWithPTModalProps {
 }
 
 export function ChatWithPTModal({ isOpen, onClose, trainerName, trainerImage, trainerId }: ChatWithPTModalProps) {
+  const { token } = useAuth();
+  const { showError } = useToast();
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      sender: "trainer",
-      text: "Hi! Thanks for booking a session with me. Looking forward to training with you! 💪",
-      time: "10:30 AM"
-    },
-    {
-      id: 2,
-      sender: "user",
-      text: "Hi! I'm excited too. What should I prepare for tomorrow's session?",
-      time: "10:32 AM"
-    },
-    {
-      id: 3,
-      sender: "trainer",
-      text: "Great! Please bring a water bottle, towel, and wear comfortable workout clothes. We'll focus on strength training basics.",
-      time: "10:35 AM"
-    },
-    {
-      id: 4,
-      sender: "user",
-      text: "Perfect! See you tomorrow at 10 AM!",
-      time: "10:36 AM"
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSend = () => {
-    if (message.trim()) {
-      const newMessage: Message = {
-        id: messages.length + 1,
-        sender: "user",
-        text: message,
-        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages([...messages, newMessage]);
-      setMessage("");
-
-      // Simulate trainer response
-      setTimeout(() => {
-        const trainerResponse: Message = {
-          id: messages.length + 2,
-          sender: "trainer",
-          text: "Got it! I'll see you then. Feel free to reach out if you have any questions.",
-          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => [...prev, trainerResponse]);
-      }, 2000);
+  const getUserIdFromToken = (jwt: string | null): number | null => {
+    if (!jwt) return null;
+    try {
+      const base64Url = jwt.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const decoded = JSON.parse(jsonPayload);
+      return decoded.userId || null;
+    } catch {
+      return null;
     }
+  };
+
+  const userId = getUserIdFromToken(token);
+
+  useEffect(() => {
+    const loadConversation = async () => {
+      if (!isOpen) return;
+      if (!userId) {
+        showError('Please sign in again to use chat.', 'Authentication');
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        await chatService.startConversation(userId, trainerId);
+        const history = await chatService.getConversation(userId, trainerId);
+        const mapped: Message[] = (history || []).map((m) => ({
+          id: m.id,
+          sender: m.senderId === userId ? 'user' : 'trainer',
+          text: m.content,
+          time: new Date(m.sendAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setMessages(mapped);
+      } catch (e) {
+        console.error('Chat load error:', e);
+        showError('Unable to load chat messages.', 'Chat');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadConversation();
+  }, [isOpen, trainerId, userId, showError]);
+
+  const handleSend = () => {
+    const text = message.trim();
+    if (!text) return;
+    if (!userId) {
+      showError('Please sign in again to send messages.', 'Authentication');
+      return;
+    }
+
+    const optimistic: Message = {
+      id: Date.now(),
+      sender: 'user',
+      text,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, optimistic]);
+    setMessage('');
+
+    chatService
+      .sendMessage({
+        senderId: userId,
+        receiverId: trainerId,
+        content: text,
+      })
+      .catch((e) => {
+        console.error('Chat send error:', e);
+        showError('Failed to send message.', 'Chat');
+      });
   };
 
   return (
@@ -99,23 +136,24 @@ export function ChatWithPTModal({ isOpen, onClose, trainerName, trainerImage, tr
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {isLoading && (
+            <div className="text-sm text-muted-foreground">Loading messages...</div>
+          )}
           {messages.map((msg) => (
             <div
               key={msg.id}
               className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[70%] ${
-                  msg.sender === "user"
+                className={`max-w-[70%] ${msg.sender === "user"
                     ? "bg-primary text-white"
                     : "bg-secondary text-foreground"
-                } rounded-[16px] p-3`}
+                  } rounded-[16px] p-3`}
               >
                 <p className="text-sm">{msg.text}</p>
                 <p
-                  className={`text-xs mt-1 ${
-                    msg.sender === "user" ? "text-white/70" : "text-muted-foreground"
-                  }`}
+                  className={`text-xs mt-1 ${msg.sender === "user" ? "text-white/70" : "text-muted-foreground"
+                    }`}
                 >
                   {msg.time}
                 </p>

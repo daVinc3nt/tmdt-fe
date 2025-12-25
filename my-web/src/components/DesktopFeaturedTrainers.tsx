@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-// 1. FIX LỖI IMPORT: Thêm chữ 'type' vào trước Product
-import productService, { type Product } from "../services/productService";
+import { useEffect, useState } from "react";
+// 1. IMPORT FIX: Add the 'type' keyword before Product
+import productService from "../services/productService";
 import ptService, { type Trainer } from "../services/ptService";
 
-import { TrendingUp, Users, Star, Heart, MapPin, Dumbbell, Filter, ShoppingBag, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Dumbbell, Filter, Heart, Loader2, MapPin, ShoppingBag, Star, TrendingUp, Users } from "lucide-react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
 import {
   Select,
   SelectContent,
@@ -16,11 +16,11 @@ import {
   SelectValue,
 } from "./ui/select";
 
-// 2. FIX LỖI XUẤT KHẨU (EXPORT):
-// Giữ lại dòng này để tránh crash các file khác đang import nó (như Profile)
+// 2. EXPORT FIX:
+// Keep this to avoid breaking other files that import it (e.g. Profile)
 export const allTrainers: any[] = [];
 
-// 3. FIX LỖI INTERFACE: Thêm image?: string
+// 3. INTERFACE FIX: Add image?: string
 interface UITrainer extends Trainer {
   gym: string;
   gymLogo: string;
@@ -29,7 +29,7 @@ interface UITrainer extends Trainer {
   reviews: number;
   featured: boolean;
   favorite: boolean;
-  image?: string; // 👈 Thêm dòng này để hết lỗi đỏ ở dòng 297
+  image?: string;
 }
 
 interface DesktopFeaturedTrainersProps {
@@ -60,32 +60,32 @@ export function DesktopFeaturedTrainers({
       try {
         setLoading(true);
 
-        // Gọi API
+        // Call APIs
         const [ptData, productResponse] = await Promise.all([
           ptService.getAllTrainers(),
           productService.getAllProducts()
         ]);
 
-        // Map dữ liệu Trainer
+        // Map trainer data
         const mappedTrainers: UITrainer[] = ptData.map((pt) => ({
           ...pt,
           gym: "FitConnect Center",
           gymLogo: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=200",
           price: Math.floor(Math.random() * (100 - 50) + 50),
-          location: ["Hồ Chí Minh", "Hà Nội", "Đà Nẵng"][Math.floor(Math.random() * 3)],
+          location: ["Ho Chi Minh City", "Hanoi", "Da Nang"][Math.floor(Math.random() * 3)],
           reviews: Math.floor(Math.random() * 300),
           featured: Math.random() > 0.7,
           favorite: false,
-          image: pt.avatar // Gán avatar từ API vào field image của UI
+          image: pt.avatar
         }));
         setTrainers(mappedTrainers);
 
-        // Map dữ liệu Product
+        // Map product data
         const rawProducts = Array.isArray(productResponse) ? productResponse : (productResponse as any).data || [];
         setProducts(rawProducts.slice(0, 4));
 
       } catch (error) {
-        console.error("❌ Lỗi tải dữ liệu:", error);
+        console.error("Failed to load data:", error);
       } finally {
         setLoading(false);
       }
@@ -95,13 +95,13 @@ export function DesktopFeaturedTrainers({
   }, []);
 
   const categories = [
-    { id: "top", label: "HLV Hàng đầu" },
-    { id: "all", label: "Tất cả HLV" },
-    { id: "Strength", label: "Thể lực" },
+    { id: "top", label: "Top trainers" },
+    { id: "all", label: "All trainers" },
+    { id: "Strength", label: "Strength" },
     { id: "CrossFit", label: "CrossFit" },
     { id: "Yoga", label: "Yoga" },
     { id: "Boxing", label: "Boxing" },
-    { id: "Bodybuilding", label: "Thể hình" }
+    { id: "Bodybuilding", label: "Bodybuilding" }
   ];
 
   const filteredTrainers = trainers.filter(trainer => {
@@ -130,7 +130,7 @@ export function DesktopFeaturedTrainers({
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+          <p className="text-muted-foreground">Loading data...</p>
         </div>
       </div>
     );
@@ -143,18 +143,18 @@ export function DesktopFeaturedTrainers({
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="grid grid-cols-2 gap-12 items-center">
             <div>
-              <h1 className="text-foreground mb-4">Kết nối với Huấn luyện viên hàng đầu</h1>
+              <h1 className="text-foreground mb-4">Connect with top trainers</h1>
               <p className="text-muted-foreground text-lg mb-8">
-                Kết nối với các huấn luyện viên cá nhân ưu tú và tiếp cận thiết bị phòng tập cao cấp. Bắt đầu hành trình thay đổi của bạn ngay hôm nay.
+                Connect with elite personal trainers and access premium gym equipment. Start your transformation today.
               </p>
 
               <div className="flex gap-4 mb-12">
                 <Button className="bg-primary text-white gap-2" size="lg" onClick={onViewGyms}>
                   <Dumbbell className="w-5 h-5" />
-                  Tìm Huấn luyện viên
+                  Find trainers
                 </Button>
                 <Button variant="outline" size="lg" onClick={onShopProducts}>
-                  Mua sắm sản phẩm
+                  Shop products
                 </Button>
               </div>
 
@@ -164,21 +164,21 @@ export function DesktopFeaturedTrainers({
                     <span className="text-primary text-3xl">{trainers.length}+</span>
                     <TrendingUp className="w-5 h-5 text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">HLV đang hoạt động</p>
+                  <p className="text-muted-foreground text-sm">Active trainers</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-primary text-3xl">12K+</span>
                     <TrendingUp className="w-5 h-5 text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Khách hàng hài lòng</p>
+                  <p className="text-muted-foreground text-sm">Happy customers</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-primary text-3xl">4.9</span>
                     <Star className="w-5 h-5 fill-primary text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Đánh giá trung bình</p>
+                  <p className="text-muted-foreground text-sm">Average rating</p>
                 </div>
               </div>
             </div>
@@ -201,10 +201,10 @@ export function DesktopFeaturedTrainers({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <ShoppingBag className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold text-foreground">Sản phẩm nổi bật</h2>
+            <h2 className="text-2xl font-bold text-foreground">Featured products</h2>
           </div>
-          <Button variant="ghost" onClick={onShopProducts} className="text-primary gap-1" aria-label="Xem tất cả sản phẩm">
-            Xem tất cả <ArrowRight className="w-4 h-4" />
+          <Button variant="ghost" onClick={onShopProducts} className="text-primary gap-1" aria-label="View all products">
+            View all <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
 
@@ -216,10 +216,11 @@ export function DesktopFeaturedTrainers({
                   <div className="relative h-48 overflow-hidden bg-muted">
                     <ImageWithFallback
                       src={product.image || "https://via.placeholder.com/300"}
-                      alt={`Hình ảnh sản phẩm ${product.name}`}
+                      alt={`Product image: ${product.name}`}
                       loading="lazy"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
+
                     <Badge className="absolute top-2 left-2 bg-red-500 hover:bg-red-600">Hot</Badge>
                   </div>
                   <div className="p-4">
@@ -227,7 +228,7 @@ export function DesktopFeaturedTrainers({
                     <h3 className="font-semibold truncate mb-2 text-foreground">{product.name}</h3>
                     <div className="flex items-center justify-between">
                       <span className="text-lg font-bold text-primary">{parseInt(product.price).toLocaleString()}đ</span>
-                      <Button size="sm" variant="secondary" className="hover:bg-primary hover:text-white transition-colors">Mua ngay</Button>
+                      <Button size="sm" variant="secondary" className="hover:bg-primary hover:text-white transition-colors">Buy now</Button>
                     </div>
                   </div>
                 </Card>
@@ -235,7 +236,7 @@ export function DesktopFeaturedTrainers({
             ))}
           </div>
         ) : (
-          <p className="text-muted-foreground">Chưa có sản phẩm nào.</p>
+          <p className="text-muted-foreground">No products available yet.</p>
         )}
       </div>
 
@@ -259,13 +260,13 @@ export function DesktopFeaturedTrainers({
           <div className="flex items-center gap-3">
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-[180px] bg-card border-border" aria-label="Sort trainers">
-                <SelectValue placeholder="Sắp xếp theo" />
+                <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="highest">Đánh giá cao nhất</SelectItem>
-                <SelectItem value="lowest">Đánh giá thấp nhất</SelectItem>
-                <SelectItem value="price-low">Giá: Thấp đến Cao</SelectItem>
-                <SelectItem value="price-high">Giá: Cao đến Thấp</SelectItem>
+                <SelectItem value="highest">Highest rating</SelectItem>
+                <SelectItem value="lowest">Lowest rating</SelectItem>
+                <SelectItem value="price-low">Price: Low to High</SelectItem>
+                <SelectItem value="price-high">Price: High to Low</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" aria-label="Show filter options">
@@ -276,8 +277,8 @@ export function DesktopFeaturedTrainers({
 
         <div className="mb-6 flex items-center gap-2">
           <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-          <span className="font-bold text-lg">Danh sách Huấn Luyện Viên</span>
-          <span className="text-muted-foreground ml-2">({filteredTrainers.length} hiện có)</span>
+          <span className="font-bold text-lg">Trainer list</span>
+          <span className="text-muted-foreground ml-2">({filteredTrainers.length} available)</span>
         </div>
 
         <div className="grid grid-cols-4 gap-6">
@@ -290,7 +291,7 @@ export function DesktopFeaturedTrainers({
               <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 border-border bg-card group h-full">
                 <div className="relative h-72">
                   <ImageWithFallback
-                    src={trainer.image || trainer.avatar} // Sử dụng cả 2 cho chắc ăn
+                    src={trainer.image || trainer.avatar} // Use both for safety
                     alt={trainer.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -328,7 +329,7 @@ export function DesktopFeaturedTrainers({
                       <span className="text-foreground text-sm">{trainer.rating}</span>
                     </div>
                     <div className="text-muted-foreground text-sm">
-                      • {trainer.experience} năm KN
+                      • {trainer.experience} yrs exp
                     </div>
                     <span className="text-muted-foreground text-sm">({trainer.reviews} reviews)</span>
                   </div>
@@ -351,7 +352,7 @@ export function DesktopFeaturedTrainers({
                       size="sm"
                       className="bg-primary text-white"
                     >
-                      Đặt lịch
+                      Book
                     </Button>
                   </div>
                 </div>
@@ -363,8 +364,8 @@ export function DesktopFeaturedTrainers({
         {filteredTrainers.length === 0 && !loading && (
           <Card className="p-12 text-center border-border bg-card">
             <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-foreground mb-2">Không tìm thấy Huấn luyện viên nào</h3>
-            <p className="text-muted-foreground">Hãy thử điều chỉnh bộ lọc của bạn</p>
+            <h3 className="text-foreground mb-2">No trainers found</h3>
+            <p className="text-muted-foreground">Try adjusting your filters</p>
           </Card>
         )}
       </div>

@@ -1,14 +1,15 @@
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Camera, Save, LogOut } from "lucide-react";
+import { ArrowLeft, Calendar, Camera, Edit, LogOut, Mail, MapPin, Phone, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useToast } from "../context/ToastContext";
+import { userService, type UserProfile, type UserUpdateData } from "../services/userService";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Badge } from "./ui/badge";
-import { useState, useEffect } from "react";
-import { userService, type UserProfile, type UserUpdateData } from "../services/userService";
+import { Textarea } from "./ui/textarea";
 
 interface DesktopUserProfileProps {
   onBack: () => void;
@@ -22,6 +23,7 @@ export function DesktopUserProfile({ onBack, userType = "Customer", onLogout }: 
   const [saving, setSaving] = useState(false);
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState<UserUpdateData>({});
+  const { showError, showSuccess } = useToast();
 
   useEffect(() => {
     loadProfile();
@@ -62,9 +64,10 @@ export function DesktopUserProfile({ onBack, userType = "Customer", onLogout }: 
       const updated = await userService.updateCurrentUser(formData);
       setProfileData(updated);
       setIsEditing(false);
+      showSuccess("Your profile has been updated.", "Profile saved");
     } catch (error) {
       console.error("Error saving profile:", error);
-      alert("Failed to save profile. Please try again.");
+      showError("Failed to save profile. Please try again.", "Save failed");
     } finally {
       setSaving(false);
     }
@@ -182,8 +185,8 @@ export function DesktopUserProfile({ onBack, userType = "Customer", onLogout }: 
               </div>
             </Card>
 
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full h-12 rounded-[20px] border-2 border-border hover:border-destructive hover:text-destructive hover:bg-destructive/10 transition-colors gap-2"
               onClick={onLogout || onBack}
             >

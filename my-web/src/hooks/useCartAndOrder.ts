@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
-
-const API_BASE_URL = 'https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io';
+import axiosClient from '../services/axiosClient';
 
 export const useCart = (userId: number) => {
   const [cartItems, setCartItems] = useState<any[]>([]);
@@ -11,10 +10,8 @@ export const useCart = (userId: number) => {
     if (!userId) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/cart/${userId}`);
-      if (!response.ok) throw new Error('Failed to fetch cart');
-      const data = await response.json();
-      setCartItems(data);
+      const response = await axiosClient.get(`/api/cart/${userId}`);
+      setCartItems(response.data ?? []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Unknown error');
@@ -31,15 +28,10 @@ export const useCart = (userId: number) => {
       }
       setLoading(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/cart/add?userId=${userId}&productId=${productId}&quantity=${quantity}`,
-          { method: 'POST' }
-        );
-        if (!response.ok) {
-          if (response.status === 400) throw new Error('Sản phẩm hết hàng hoặc yêu cầu không hợp lệ');
-          throw new Error('Failed to add to cart');
-        }
-        const newItem = await response.json();
+        const response = await axiosClient.post('/api/cart/add', null, {
+          params: { userId, productId, quantity },
+        });
+        const newItem = response.data;
         setCartItems(prev => [...prev, newItem]);
         setError(null);
         return newItem;
@@ -56,12 +48,10 @@ export const useCart = (userId: number) => {
   const updateQuantity = useCallback(async (cartItemId: number, newQuantity: number) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/cart/update/${cartItemId}?quantity=${newQuantity}`,
-        { method: 'PUT' }
-      );
-      if (!response.ok) throw new Error('Failed to update quantity');
-      const updatedItem = await response.json();
+      const response = await axiosClient.put(`/api/cart/update/${cartItemId}`, null, {
+        params: { quantity: newQuantity },
+      });
+      const updatedItem = response.data;
       setCartItems(prevItems =>
         prevItems.map(item => (item.id === cartItemId ? updatedItem : item))
       );
@@ -79,11 +69,7 @@ export const useCart = (userId: number) => {
     async (cartItemId: number) => {
       setLoading(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/cart/${cartItemId}`,
-          { method: 'DELETE' }
-        );
-        if (!response.ok) throw new Error('Failed to remove from cart');
+        await axiosClient.delete(`/api/cart/${cartItemId}`);
         setCartItems(prevItems => prevItems.filter(item => item.id !== cartItemId));
         setError(null);
         return true;
@@ -101,10 +87,7 @@ export const useCart = (userId: number) => {
     if (!userId) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/cart/clear/${userId}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error('Failed to clear cart');
+      await axiosClient.delete(`/api/cart/clear/${userId}`);
       setCartItems([]);
       setError(null);
       return true;
@@ -137,10 +120,8 @@ export const useOrder = (userId: number) => {
     if (!userId) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/order/${userId}`);
-      if (!response.ok) throw new Error('Failed to fetch orders');
-      const data = await response.json();
-      setOrders(data);
+      const response = await axiosClient.get(`/api/order/${userId}`);
+      setOrders(response.data ?? []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Unknown error');
@@ -157,20 +138,12 @@ export const useOrder = (userId: number) => {
       }
       setLoading(true);
       try {
-        const response = await fetch(
-          `${API_BASE_URL}/order/create/${userId}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              paymentMethod,
-              shippingAddress,
-              cartItemIds
-            })
-          }
-        );
-        if (!response.ok) throw new Error('Failed to create order');
-        const newOrder = await response.json();
+        const response = await axiosClient.post(`/api/order/create/${userId}`, {
+          paymentMethod,
+          shippingAddress,
+          cartItemIds,
+        });
+        const newOrder = response.data;
         if (newOrder.id) {
           setOrders(prev => [...prev, newOrder]);
         }

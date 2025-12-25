@@ -39,24 +39,24 @@ const CartPage: React.FC<CartPageProps> = ({ userId }) => {
     };
 
     if (loading) {
-        return <div className="p-4">Đang tải giỏ hàng...</div>;
+        return <div className="p-4">Loading cart...</div>;
     }
 
     if (error) {
-        return <div className="p-4 text-red-500">Lỗi: {error}</div>;
+        return <div className="p-4 text-red-500">Error: {error}</div>;
     }
 
     if (cartItems.length === 0) {
         return (
             <div className="p-4 text-center">
-                <p>Giỏ hàng của bạn trống</p>
+                <p>Your cart is empty</p>
             </div>
         );
     }
 
     return (
         <div className="p-4">
-            <h1 className="text-2xl font-bold mb-4">Giỏ Hàng</h1>
+            <h1 className="text-2xl font-bold mb-4">Cart</h1>
 
             <div className="space-y-4">
                 {cartItems.map((item: CartItem) => (
@@ -106,7 +106,7 @@ const CartPage: React.FC<CartPageProps> = ({ userId }) => {
                             onClick={() => handleRemoveItem(item.id)}
                             className="px-4 py-2 bg-red-500 text-white rounded"
                         >
-                            Xóa
+                            Remove
                         </button>
                     </div>
                 ))}
@@ -115,13 +115,13 @@ const CartPage: React.FC<CartPageProps> = ({ userId }) => {
             {/* Summary */}
             <div className="mt-8 p-4 border-t">
                 <div className="flex justify-between mb-4">
-                    <span className="font-semibold">Tổng tiền:</span>
+                    <span className="font-semibold">Total:</span>
                     <span className="text-xl font-bold">
                         {totalAmount?.toLocaleString()} đ
                     </span>
                 </div>
                 <button className="w-full bg-blue-500 text-white py-2 rounded font-semibold">
-                    Thanh toán
+                    Checkout
                 </button>
             </div>
         </div>

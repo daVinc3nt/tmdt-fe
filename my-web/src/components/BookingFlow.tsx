@@ -1,13 +1,12 @@
+import { ArrowLeft, Calendar, Check, Clock, CreditCard } from "lucide-react";
 import { useState } from "react";
-import { ArrowLeft, Calendar, Clock, CreditCard, Check } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import { bookingService } from "../services/ptService";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { bookingService } from "../services/ptService";
-import { useAuth } from "../context/AuthContext";
 
-// Helper function để decode JWT và lấy userId
+// Helper function to decode JWT and get userId
 const getUserIdFromToken = (token: string | null): number | null => {
   if (!token) return null;
   try {
@@ -22,7 +21,7 @@ const getUserIdFromToken = (token: string | null): number | null => {
     const decoded = JSON.parse(jsonPayload);
     return decoded.userId || null;
   } catch (error) {
-    console.error("Lỗi decode JWT:", error);
+    console.error("JWT decode error:", error);
     return null;
   }
 };
@@ -50,6 +49,7 @@ interface BookingFlowProps {
   bookingContext: {
     trainerId: number;
     trainerName: string;
+    packageId: number;
     price: number;
   };
   onBack: () => void;
@@ -59,7 +59,8 @@ interface BookingFlowProps {
 
 export function BookingFlow({ onBack, bookingContext }: BookingFlowProps) {
   const { token } = useAuth();
-  const { trainerId, trainerName, price } = bookingContext;
+  const { showError, showSuccess } = useToast();
+  const { trainerId, trainerName, packageId, price } = bookingContext;
   const [selectedDate, setSelectedDate] = useState(
     dates.find(d => d.available)?.date || ""
   );
@@ -72,35 +73,41 @@ export function BookingFlow({ onBack, bookingContext }: BookingFlowProps) {
 
   const handlePayment = async () => {
     if (!selectedDate || !selectedTime) {
-      alert("Vui lòng chọn ngày và giờ");
+      showError("Please select a date and time.", "Missing information");
       return;
     }
 
-    // Lấy traineeId từ JWT token
+    if (!packageId || typeof packageId !== 'number') {
+      showError("Invalid package selection. Please go back and choose a package again.", "Package");
+      return;
+    }
+
+    // Get traineeId from JWT token
     const traineeIdFromToken = getUserIdFromToken(token);
     if (!traineeIdFromToken) {
-      alert("Không thể xác thực người dùng. Vui lòng đăng nhập lại.");
+      showError("Unable to verify user. Please sign in again.", "Authentication");
       return;
     }
 
     try {
       await bookingService.createBooking({
         traineeId: traineeIdFromToken,
-        packageId: trainerId,
+        packageId,
         date: buildBookingDateISO(),
         totalAmount: price
       });
 
+      showSuccess("Your booking has been created successfully.", "Booking confirmed");
       setBookingComplete(true);
     } catch (error) {
       console.error("Booking failed FULL:", error);
-      alert("Đặt lịch thất bại (xem console)");
+      showError("Booking failed. Please try again.", "Booking failed");
     }
   };
 
   const buildBookingDateISO = () => {
     const local = new Date(`${selectedDate}T${selectedTime}:00`);
-    return local.toISOString(); // ⭐ RẤT QUAN TRỌNG
+    return local.toISOString(); // IMPORTANT
   };
 
   const formatCurrency = (value: number) =>

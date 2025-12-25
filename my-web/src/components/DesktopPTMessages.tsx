@@ -1,9 +1,12 @@
-import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send, Search, Phone, Video, MoreVertical } from "lucide-react";
-import { Card } from "./ui/card";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { ArrowLeft, MoreVertical, Phone, Search, Send, Video } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import chatService, { type ConversationDTO, type MessageDTO } from "../services/chatService";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Input } from "./ui/input";
 
 interface Message {
   id: number;
@@ -22,6 +25,7 @@ interface Conversation {
   lastMessageTime: string;
   unread: number;
   online: boolean;
+  partnerId: number;
 }
 
 interface DesktopPTMessagesProps {
@@ -29,84 +33,146 @@ interface DesktopPTMessagesProps {
   initialClientName?: string;
 }
 
-const initialConversations: Conversation[] = [
-  {
-    id: 1,
-    client: {
-      name: "John Davis",
-      image: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400"
-    },
-    lastMessage: "See you tomorrow at 6 AM!",
-    lastMessageTime: "2m ago",
-    unread: 2,
-    online: true
-  },
-  {
-    id: 2,
-    client: {
-      name: "Sarah Martinez",
-      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400"
-    },
-    lastMessage: "Can we reschedule Friday's session?",
-    lastMessageTime: "1h ago",
-    unread: 1,
-    online: true
-  },
-  {
-    id: 3,
-    client: {
-      name: "Mike Roberts",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400"
-    },
-    lastMessage: "Thanks for the nutrition plan!",
-    lastMessageTime: "3h ago",
-    unread: 0,
-    online: false
-  },
-  {
-    id: 4,
-    client: {
-      name: "Emma Wilson",
-      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400"
-    },
-    lastMessage: "Great session today, feeling pumped!",
-    lastMessageTime: "Yesterday",
-    unread: 0,
-    online: false
+const getUserIdFromToken = (jwt: string | null): number | null => {
+  if (!jwt) return null;
+  try {
+    const base64Url = jwt.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const decoded = JSON.parse(jsonPayload);
+    return decoded.userId || null;
+  } catch {
+    return null;
   }
-];
+};
 
-// Mock data ban đầu cho user ID 1
-const initialMessages: Message[] = [
-  { id: 1, sender: "client", text: "Hi Marcus! Looking forward to our session tomorrow.", time: "10:23 AM" },
-  { id: 2, sender: "pt", text: "Hey John! Yes, me too. We'll focus on upper body tomorrow. Make sure you're well rested!", time: "10:25 AM" },
-  { id: 3, sender: "client", text: "Perfect! Should I bring anything specific?", time: "10:27 AM" },
-  { id: 4, sender: "pt", text: "Just your water bottle and gloves. I'll have everything else ready.", time: "10:28 AM" },
-  { id: 5, sender: "client", text: "See you tomorrow at 6 AM!", time: "10:30 AM" }
-];
+const getAvatarUrl = (name: string) => {
+  const safe = encodeURIComponent(name || 'User');
+  return `https://ui-avatars.com/api/?name=${safe}&background=random`;
+};
+
+const formatRelativeTime = (iso?: string) => {
+  if (!iso) return '';
+  try {
+    const date = new Date(iso);
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDay = Math.floor(diffHr / 24);
+    if (diffDay === 1) return 'Yesterday';
+    return `${diffDay}d ago`;
+  } catch {
+    return '';
+  }
+};
 
 export function DesktopPTMessages({ onBack, initialClientName }: DesktopPTMessagesProps) {
-  const [selectedConversationId, setSelectedConversationId] = useState<number>(1);
+  const { token } = useAuth();
+  const { showError } = useToast();
+  const userId = getUserIdFromToken(token);
+
+  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // State lưu tin nhắn cho từng cuộc hội thoại (key là conversationId)
-const [messagesByConversationId, setMessagesByConversationId] = useState<Record<number, Message[]>>({
-    1: initialMessages,
-    2: [], // Các user khác chưa có tin nhắn mẫu
-    3: [],
-    4: []
-  });
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   // Ref để auto-scroll
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    const loadConversationList = async () => {
+      if (!userId) {
+        showError('Please sign in again to view messages.', 'Authentication');
+        return;
+      }
+      setIsLoadingConversations(true);
+      try {
+        const data: ConversationDTO[] = await chatService.getConversationList(userId);
+        const mapped: Conversation[] = (data || []).map((c) => ({
+          id: c.id,
+          partnerId: c.partnerId,
+          client: {
+            name: c.partnerName,
+            image: getAvatarUrl(c.partnerName),
+          },
+          lastMessage: c.lastMessageContent || '',
+          lastMessageTime: formatRelativeTime(c.lastMessageAt),
+          unread: c.unreadCount || 0,
+          online: false,
+        }));
+
+        setConversations(mapped);
+
+        if (mapped.length > 0) {
+          const initial = initialClientName
+            ? mapped.find((x) => x.client.name.toLowerCase() === initialClientName.toLowerCase())
+            : null;
+          setSelectedConversationId((initial || mapped[0]).id);
+        } else {
+          setSelectedConversationId(null);
+        }
+      } catch (e) {
+        console.error('Failed to load conversation list:', e);
+        showError('Unable to load conversations.', 'Messages');
+      } finally {
+        setIsLoadingConversations(false);
+      }
+    };
+
+    loadConversationList();
+  }, [initialClientName, showError, userId]);
+
   // Lọc danh sách conversation dựa trên Search Query
-  const filteredConversations = initialConversations.filter(c => 
+  const filteredConversations = conversations.filter((c) =>
     c.client.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const activeConversation = initialConversations.find(c => c.id === selectedConversationId);
-  const currentMessages = messagesByConversationId[selectedConversationId] || [];
+  const activeConversation = conversations.find((c) => c.id === selectedConversationId);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!userId) return;
+      if (!selectedConversationId) {
+        setCurrentMessages([]);
+        return;
+      }
+
+      setIsLoadingMessages(true);
+      try {
+        await chatService.markConversationAsRead(selectedConversationId, userId);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === selectedConversationId ? { ...c, unread: 0 } : c))
+        );
+
+        const data: MessageDTO[] = await chatService.getMessages(selectedConversationId);
+        const mapped: Message[] = (data || []).map((m) => ({
+          id: m.id,
+          sender: m.senderId === userId ? 'pt' : 'client',
+          text: m.content,
+          time: new Date(m.sendAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setCurrentMessages(mapped);
+      } catch (e) {
+        console.error('Failed to load messages:', e);
+        showError('Unable to load messages.', 'Messages');
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    };
+
+    loadMessages();
+  }, [selectedConversationId, showError, userId]);
 
   // Auto scroll xuống dưới cùng mỗi khi tin nhắn thay đổi hoặc đổi user
   useEffect(() => {
@@ -116,23 +182,51 @@ const [messagesByConversationId, setMessagesByConversationId] = useState<Record<
   const handleSendMessage = () => {
     if (!messageText.trim()) return;
 
+    if (!userId) {
+      showError('Please sign in again to send messages.', 'Authentication');
+      return;
+    }
+
+    if (!activeConversation) {
+      showError('Please select a conversation first.', 'Messages');
+      return;
+    }
+
     const newMessage: Message = {
       id: Date.now(), // ID tạm
       sender: "pt",
       text: messageText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Cập nhật state tin nhắn
-    setMessagesByConversationId(prev => ({
-      ...prev,
-      [selectedConversationId]: [...(prev[selectedConversationId] || []), newMessage]
-    }));
+    setCurrentMessages((prev) => [...prev, newMessage]);
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === activeConversation.id
+          ? {
+            ...c,
+            lastMessage: messageText,
+            lastMessageTime: 'Just now',
+          }
+          : c
+      )
+    );
+
+    chatService
+      .sendMessage({
+        senderId: userId,
+        receiverId: activeConversation.partnerId,
+        content: messageText,
+      })
+      .catch((e) => {
+        console.error('Failed to send message:', e);
+        showError('Failed to send message.', 'Messages');
+      });
 
     setMessageText("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleSendMessage();
     }
@@ -172,16 +266,17 @@ const [messagesByConversationId, setMessagesByConversationId] = useState<Record<
 
             {/* Conversations List Items */}
             <div className="flex-1 overflow-y-auto">
-              {filteredConversations.length > 0 ? (
+              {isLoadingConversations ? (
+                <div className="p-4 text-center text-muted-foreground text-sm">Loading conversations...</div>
+              ) : filteredConversations.length > 0 ? (
                 filteredConversations.map((conversation) => (
                   <div
                     key={conversation.id}
                     onClick={() => setSelectedConversationId(conversation.id)}
-                    className={`p-4 border-b border-border cursor-pointer transition-colors ${
-                      selectedConversationId === conversation.id
+                    className={`p-4 border-b border-border cursor-pointer transition-colors ${selectedConversationId === conversation.id
                         ? "bg-primary/5 border-l-4 border-l-primary" // Thêm border trái để highlight rõ hơn
                         : "hover:bg-muted/50 border-l-4 border-l-transparent"
-                    }`}
+                      }`}
                   >
                     <div className="flex gap-3">
                       <div className="relative flex-shrink-0">
@@ -222,7 +317,7 @@ const [messagesByConversationId, setMessagesByConversationId] = useState<Record<
                 ))
               ) : (
                 <div className="p-4 text-center text-muted-foreground text-sm">
-                  No conversations found.
+                  No conversations yet.
                 </div>
               )}
             </div>
@@ -270,6 +365,9 @@ const [messagesByConversationId, setMessagesByConversationId] = useState<Record<
 
                 {/* Messages List */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-muted/10">
+                  {isLoadingMessages && (
+                    <div className="text-muted-foreground text-sm">Loading messages...</div>
+                  )}
                   {currentMessages.length > 0 ? (
                     currentMessages.map((message) => (
                       <div
@@ -277,17 +375,15 @@ const [messagesByConversationId, setMessagesByConversationId] = useState<Record<
                         className={`flex ${message.sender === "pt" ? "justify-end" : "justify-start"}`}
                       >
                         <div
-                          className={`max-w-[70%] ${
-                            message.sender === "pt"
+                          className={`max-w-[70%] ${message.sender === "pt"
                               ? "bg-primary text-primary-foreground"
                               : "bg-muted text-foreground"
-                          } rounded-2xl px-4 py-3 shadow-sm`}
+                            } rounded-2xl px-4 py-3 shadow-sm`}
                         >
                           <p className="text-sm leading-relaxed">{message.text}</p>
                           <p
-                            className={`text-[10px] mt-1 text-right ${
-                              message.sender === "pt" ? "text-primary-foreground/70" : "text-muted-foreground"
-                            }`}
+                            className={`text-[10px] mt-1 text-right ${message.sender === "pt" ? "text-primary-foreground/70" : "text-muted-foreground"
+                              }`}
                           >
                             {message.time}
                           </p>

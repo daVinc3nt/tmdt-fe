@@ -1,10 +1,13 @@
-import { useState } from "react";
-import { ArrowLeft, Calendar, Clock, User, MapPin, Phone, Mail, CheckCircle, XCircle, MessageSquare } from "lucide-react";
-import { Card } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { ArrowLeft, Calendar, CheckCircle, Clock, Mail, MessageSquare, Phone, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import bookingService, { type BookingAPI, type BookingStatus } from "../services/bookingService";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 interface Booking {
   id: number;
@@ -28,94 +31,116 @@ interface DesktopPTBookingsProps {
   onMessageClient: (clientName: string) => void;
 }
 
-const mockBookings: Booking[] = [
-  {
-    id: 1,
-    client: {
-      name: "John Davis",
-      email: "john.davis@email.com",
-      phone: "(555) 123-4567",
-      image: "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=400"
-    },
-    sessionType: "Strength Training",
-    date: "2024-12-05",
-    time: "6:00 AM",
-    duration: 60,
-    price: 80,
-    status: "confirmed",
-    notes: "Focus on upper body"
-  },
-  {
-    id: 2,
-    client: {
-      name: "Sarah Martinez",
-      email: "sarah.m@email.com",
-      phone: "(555) 234-5678",
-      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400"
-    },
-    sessionType: "HIIT",
-    date: "2024-12-05",
-    time: "7:00 AM",
-    duration: 45,
-    price: 70,
-    status: "confirmed"
-  },
-  {
-    id: 3,
-    client: {
-      name: "Mike Roberts",
-      email: "mike.r@email.com",
-      phone: "(555) 345-6789",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400"
-    },
-    sessionType: "Powerlifting",
-    date: "2024-12-05",
-    time: "5:00 PM",
-    duration: 90,
-    price: 120,
-    status: "pending",
-    notes: "First session - assess current strength levels"
-  },
-  {
-    id: 4,
-    client: {
-      name: "Emma Wilson",
-      email: "emma.w@email.com",
-      phone: "(555) 456-7890",
-      image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400"
-    },
-    sessionType: "Strength Training",
-    date: "2024-12-06",
-    time: "6:00 PM",
-    duration: 60,
-    price: 80,
-    status: "confirmed"
-  },
-  {
-    id: 5,
-    client: {
-      name: "Alex Chen",
-      email: "alex.chen@email.com",
-      phone: "(555) 567-8901",
-      image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400"
-    },
-    sessionType: "CrossFit",
-    date: "2024-12-03",
-    time: "7:00 AM",
-    duration: 60,
-    price: 80,
-    status: "completed"
+const getAvatarUrl = (name: string) => {
+  const safe = encodeURIComponent(name || 'User');
+  return `https://ui-avatars.com/api/?name=${safe}&background=random`;
+};
+
+const formatDateParts = (iso?: string) => {
+  if (!iso) return { date: 'N/A', time: 'N/A' };
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('en-US');
+    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return { date, time };
+  } catch {
+    return { date: iso, time: '' };
   }
-];
+};
+
+const mapBookingStatus = (status?: BookingStatus): Booking['status'] => {
+  switch (status) {
+    case 'FINISHED':
+      return 'completed';
+    case 'CANCELLED':
+      return 'cancelled';
+    case 'PENDING':
+    default:
+      return 'pending';
+  }
+};
+
+const getUserIdFromToken = (jwt: string | null): number | null => {
+  if (!jwt) return null;
+  try {
+    const base64Url = jwt.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const decoded = JSON.parse(jsonPayload);
+    return decoded.userId || null;
+  } catch {
+    return null;
+  }
+};
 
 export function DesktopPTBookings({ onBack, onMessageClient }: DesktopPTBookingsProps) {
+  const { showError, showSuccess } = useToast();
+  const { token } = useAuth();
+  const trainerId = getUserIdFromToken(token);
   const [selectedTab, setSelectedTab] = useState("upcoming");
 
-  const upcomingBookings = mockBookings.filter(b => 
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadBookings = async () => {
+      setIsLoading(true);
+      try {
+        const data: BookingAPI[] = await bookingService.getAllBookings();
+        const filtered = trainerId
+          ? (data || []).filter((b) => {
+            const pkg: any = b.bookingPackage;
+            const trainer = pkg?.trainer_id || pkg?.trainer;
+            const id = trainer?.id;
+            return typeof id === 'number' ? id === trainerId : true;
+          })
+          : (data || []);
+
+        const mapped: Booking[] = filtered.map((b) => {
+          const traineeName = b.trainee?.fullName || 'Client';
+          const traineeEmail = b.trainee?.email || '';
+          const traineePhone = b.trainee?.phoneNumber || '';
+          const { date, time } = formatDateParts(b.date);
+
+          const duration = typeof b.bookingPackage?.duration === 'number' ? b.bookingPackage!.duration! : 60;
+
+          return {
+            id: b.id,
+            client: {
+              name: traineeName,
+              email: traineeEmail,
+              phone: traineePhone,
+              image: getAvatarUrl(traineeName),
+            },
+            sessionType: b.bookingPackage?.name || 'Training session',
+            date,
+            time,
+            duration,
+            price: b.totalAmount || 0,
+            status: mapBookingStatus(b.status),
+          };
+        });
+        setBookings(mapped);
+      } catch (e) {
+        console.error('Failed to load bookings:', e);
+        showError('Unable to load bookings.', 'Bookings');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadBookings();
+  }, [showError, trainerId]);
+
+  const upcomingBookings = bookings.filter(b =>
     b.status === "confirmed" || b.status === "pending"
   );
-  const completedBookings = mockBookings.filter(b => b.status === "completed");
-  const pendingBookings = mockBookings.filter(b => b.status === "pending");
+  const completedBookings = bookings.filter(b => b.status === "completed");
+  const pendingBookings = bookings.filter(b => b.status === "pending");
 
   const getStatusColor = (status: Booking["status"]) => {
     switch (status) {
@@ -185,7 +210,7 @@ export function DesktopPTBookings({ onBack, onMessageClient }: DesktopPTBookings
 
           <div className="flex items-center justify-between">
             <span className="text-primary text-lg">${booking.price}</span>
-            
+
             <div className="flex gap-2">
               <Button
                 onClick={() => onMessageClient(booking.client.name)}
@@ -196,31 +221,67 @@ export function DesktopPTBookings({ onBack, onMessageClient }: DesktopPTBookings
                 <MessageSquare className="w-4 h-4" />
                 Message
               </Button>
-              
+
               {booking.status === "pending" && (
                 <>
                   <Button
                     size="sm"
                     className="bg-primary text-white gap-2"
+                    onClick={() => {
+                      bookingService
+                        .updateStatus(booking.id, 'FINISHED')
+                        .then(() => {
+                          setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'completed' } : b)));
+                          showSuccess('Booking updated.', 'Bookings');
+                        })
+                        .catch((e) => {
+                          console.error('Failed to update booking:', e);
+                          showError('Failed to update booking status.', 'Bookings');
+                        });
+                    }}
                   >
                     <CheckCircle className="w-4 h-4" />
-                    Confirm
+                    Mark Complete
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     className="gap-2 text-red-500 hover:text-red-600"
+                    onClick={() => {
+                      bookingService
+                        .updateStatus(booking.id, 'CANCELLED')
+                        .then(() => {
+                          setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'cancelled' } : b)));
+                          showSuccess('Booking cancelled.', 'Bookings');
+                        })
+                        .catch((e) => {
+                          console.error('Failed to cancel booking:', e);
+                          showError('Failed to cancel booking.', 'Bookings');
+                        });
+                    }}
                   >
                     <XCircle className="w-4 h-4" />
-                    Decline
+                    Cancel
                   </Button>
                 </>
               )}
-              
+
               {booking.status === "confirmed" && (
                 <Button
                   size="sm"
                   className="bg-primary text-white"
+                  onClick={() => {
+                    bookingService
+                      .updateStatus(booking.id, 'FINISHED')
+                      .then(() => {
+                        setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'completed' } : b)));
+                        showSuccess('Booking updated.', 'Bookings');
+                      })
+                      .catch((e) => {
+                        console.error('Failed to update booking:', e);
+                        showError('Failed to update booking status.', 'Bookings');
+                      });
+                  }}
                 >
                   Mark Complete
                 </Button>
@@ -259,14 +320,18 @@ export function DesktopPTBookings({ onBack, onMessageClient }: DesktopPTBookings
             <div className="text-foreground text-3xl">{upcomingBookings.length}</div>
           </Card>
           <Card className="p-6 border-border bg-card">
-            <div className="text-muted-foreground text-sm mb-2">Pending Approval</div>
+            <div className="text-muted-foreground text-sm mb-2">Pending Requests</div>
             <div className="text-foreground text-3xl">{pendingBookings.length}</div>
           </Card>
           <Card className="p-6 border-border bg-card">
-            <div className="text-muted-foreground text-sm mb-2">Completed This Week</div>
+            <div className="text-muted-foreground text-sm mb-2">Completed Sessions</div>
             <div className="text-foreground text-3xl">{completedBookings.length}</div>
           </Card>
         </div>
+
+        {isLoading && (
+          <div className="text-sm text-muted-foreground mb-6">Loading bookings...</div>
+        )}
 
         {/* Bookings Tabs */}
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useToast } from "../context/ToastContext";
 import api from "../services/api";
 import { MascotFull } from "./MascotFull";
 import { MascotLogo } from "./MascotLogo";
@@ -39,6 +40,7 @@ const initialFormState = {
 
 export function DesktopRegister() {
   const navigate = useNavigate();
+  const { showSuccess } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -102,7 +104,7 @@ export function DesktopRegister() {
       console.log(`Calling API: POST ${endpoint}`, payload);
       await api.post(endpoint, payload);
 
-      alert(`Successfully registered as ${selectedRole}! Please sign in.`);
+      showSuccess(`Successfully registered as ${selectedRole}. Please sign in.`, 'Registration successful');
       navigate('/login');
 
     } catch (err: any) {

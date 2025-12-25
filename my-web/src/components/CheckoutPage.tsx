@@ -1,5 +1,6 @@
 import { useCart, useOrder } from '@/hooks/useCartAndOrder';
 import React, { useState } from 'react';
+import { useToast } from '../context/ToastContext';
 
 interface CheckoutPageProps {
     userId: number;
@@ -9,6 +10,7 @@ interface CheckoutPageProps {
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) => {
     const { cartItems, getCart: refreshCart } = useCart(userId);
     const { createOrder, loading, error } = useOrder(userId);
+    const { showError, showSuccess } = useToast();
 
     const [formData, setFormData] = useState({
         paymentMethod: 'CREDIT_CARD',
@@ -34,12 +36,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
         e.preventDefault();
 
         if (!formData.shippingAddress.trim()) {
-            setOrderError('Vui lòng nhập địa chỉ giao hàng');
+            setOrderError('Please enter a shipping address.');
             return;
         }
 
         if (cartItems.length === 0) {
-            setOrderError('Giỏ hàng trống');
+            setOrderError('Your cart is empty.');
             return;
         }
 
@@ -61,12 +63,18 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                     onOrderSuccess(result.id);
                 }
 
-                alert(`Đơn hàng #${result.id} đã được tạo thành công!\nTổng tiền: ${result.totalPrice?.toLocaleString()} đ`);
+                showSuccess(
+                    `Order #${result.id} has been created successfully. Total: ${result.totalPrice?.toLocaleString()} đ`,
+                    'Order created'
+                );
             } else {
-                setOrderError(result?.message || 'Tạo đơn hàng thất bại');
+                const msg = result?.message || 'Failed to create order.';
+                setOrderError(msg);
+                showError(msg, 'Order failed');
             }
         } catch (err: any) {
             setOrderError(err.message);
+            showError(err.message, 'Order failed');
         } finally {
             setOrderLoading(false);
         }
@@ -75,23 +83,23 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
     if (cartItems.length === 0) {
         return (
             <div className="p-4 text-center">
-                <p className="text-lg">Giỏ hàng trống, vui lòng thêm sản phẩm trước khi thanh toán</p>
+                <p className="text-lg">Your cart is empty. Please add items before checkout.</p>
             </div>
         );
     }
 
     return (
         <div className="p-4 max-w-4xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">Thanh Toán</h1>
+            <h1 className="text-2xl font-bold mb-6">Checkout</h1>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2">
                     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow">
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Thông Tin Khách Hàng</h2>
+                            <h2 className="text-lg font-semibold mb-4">Customer information</h2>
 
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1">Họ Tên</label>
+                                <label className="block text-sm font-medium mb-1">Full name</label>
                                 <input
                                     type="text"
                                     name="fullName"
@@ -103,7 +111,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                             </div>
 
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1">Số Điện Thoại</label>
+                                <label className="block text-sm font-medium mb-1">Phone number</label>
                                 <input
                                     type="tel"
                                     name="phoneNumber"
@@ -116,10 +124,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                         </div>
 
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Địa Chỉ Giao Hàng</h2>
+                            <h2 className="text-lg font-semibold mb-4">Shipping address</h2>
 
                             <div className="mb-4">
-                                <label className="block text-sm font-medium mb-1">Địa Chỉ</label>
+                                <label className="block text-sm font-medium mb-1">Address</label>
                                 <textarea
                                     name="shippingAddress"
                                     value={formData.shippingAddress}
@@ -129,14 +137,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                                     }))}
                                     className="w-full px-4 py-2 border rounded"
                                     rows={3}
-                                    placeholder="Ví dụ: 123 Đường ABC, Phường XYZ, Quận 1, TP.HCM"
+                                    placeholder="Example: 123 ABC Street, Ward XYZ, District 1, Ho Chi Minh City"
                                     required
                                 />
                             </div>
                         </div>
 
                         <div className="mb-6">
-                            <h2 className="text-lg font-semibold mb-4">Phương Thức Thanh Toán</h2>
+                            <h2 className="text-lg font-semibold mb-4">Payment method</h2>
 
                             <div className="space-y-3">
                                 <label className="flex items-center">
@@ -148,7 +156,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                                         onChange={handleInputChange}
                                         className="mr-2"
                                     />
-                                    <span>Thẻ Tín Dụng</span>
+                                    <span>Credit card</span>
                                 </label>
                                 <label className="flex items-center">
                                     <input
@@ -159,7 +167,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                                         onChange={handleInputChange}
                                         className="mr-2"
                                     />
-                                    <span>Chuyển Khoản Ngân Hàng</span>
+                                    <span>Bank transfer</span>
                                 </label>
                                 <label className="flex items-center">
                                     <input
@@ -170,7 +178,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                                         onChange={handleInputChange}
                                         className="mr-2"
                                     />
-                                    <span>Thanh Toán Khi Nhận Hàng</span>
+                                    <span>Cash on delivery</span>
                                 </label>
                             </div>
                         </div>
@@ -186,13 +194,13 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
                             disabled={orderLoading || loading}
                             className="w-full bg-blue-500 text-white py-3 rounded font-semibold hover:bg-blue-600 disabled:bg-gray-400"
                         >
-                            {orderLoading || loading ? 'Đang xử lý...' : 'Đặt Hàng'}
+                            {orderLoading || loading ? 'Processing...' : 'Place order'}
                         </button>
                     </form>
                 </div>
 
                 <div className="bg-white p-6 rounded-lg shadow h-fit">
-                    <h2 className="text-lg font-semibold mb-4">Tóm Tắt Đơn Hàng</h2>
+                    <h2 className="text-lg font-semibold mb-4">Order summary</h2>
 
                     <div className="space-y-3 mb-6 border-b pb-6">
                         {cartItems.map((item: any) => (
@@ -208,15 +216,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ userId, onOrderSuccess }) =
 
                     <div className="space-y-2">
                         <div className="flex justify-between">
-                            <span>Tạm tính:</span>
+                            <span>Subtotal:</span>
                             <span>{totalAmount?.toLocaleString()} đ</span>
                         </div>
                         <div className="flex justify-between">
-                            <span>Phí vận chuyển:</span>
+                            <span>Shipping fee:</span>
                             <span>0 đ</span>
                         </div>
                         <div className="border-t pt-2 flex justify-between font-bold text-lg">
-                            <span>Tổng cộng:</span>
+                            <span>Total:</span>
                             <span>{totalAmount?.toLocaleString()} đ</span>
                         </div>
                     </div>

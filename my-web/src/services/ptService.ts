@@ -18,6 +18,18 @@ export interface UserAPI {
   address?: string;
 }
 
+export interface PackageAPI {
+  id: number;
+  name: string;
+  price: string;
+  description?: string;
+  type?: string;
+  thumbNailUrl?: string;
+  isActive?: boolean;
+  duration?: number;
+  trainer_id?: UserAPI;
+}
+
 export interface BookingAPI {
   id: number;
   date: string;
@@ -28,7 +40,8 @@ export interface BookingAPI {
     id: number;
     name: string;
     price: number;
-    trainer: UserAPI;
+    trainer?: UserAPI;
+    trainer_id?: UserAPI;
   };
 }
 
@@ -104,11 +117,11 @@ const ptService = {
 
     return trainers.map((t) => ({
       id: t.id,
-      name: t.fullName ?? 'Huấn luyện viên',
+      name: t.fullName ?? 'Trainer',
       specialization: t.specialty ?? 'General Fitness',
       experience: t.experienceYear ?? 1,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        t.fullName ?? 'PT'
+        t.fullName ?? 'Trainer'
       )}&background=random&size=200`,
       rating: parseFloat((4.5 + Math.random() * 0.5).toFixed(1)),
     }));
@@ -124,22 +137,20 @@ const ptService = {
 
       return {
         id: data.id,
-        name: data.fullName ?? 'Huấn luyện viên',
+        name: data.fullName ?? 'Trainer',
         specialization: data.specialty ?? 'General Fitness',
         experience: data.experienceYear ?? 1,
         bio:
           data.bio ??
-          `Huấn luyện viên chuyên nghiệp với chuyên môn ${
-            data.specialty ?? 'thể hình'
-          }.`,
+          `Professional trainer specializing in ${data.specialty ?? 'fitness'}.`,
         certificate: data.certificate ?? 'Certified Personal Trainer',
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          data.fullName ?? 'PT'
+          data.fullName ?? 'Trainer'
         )}&background=random&size=200`,
         rating: 0, // UI tự xử lý
       };
     } catch (error) {
-      console.error('❌ Lỗi lấy chi tiết PT:', error);
+      console.error('Failed to fetch trainer details:', error);
       return null;
     }
   },
@@ -154,7 +165,17 @@ const ptService = {
       );
       return response.data ?? [];
     } catch (error) {
-      console.error('❌ Lỗi lấy reviews:', error);
+      console.error('Failed to fetch reviews:', error);
+      return [];
+    }
+  },
+
+  getPackagesByTrainerId: async (trainerId: number): Promise<PackageAPI[]> => {
+    try {
+      const response = await axiosClient.get<PackageAPI[]>(`/packages/trainer/${trainerId}`);
+      return response.data ?? [];
+    } catch (error) {
+      console.error('Failed to fetch trainer packages:', error);
       return [];
     }
   },
@@ -169,7 +190,7 @@ const ptService = {
       );
       return response.data ?? [];
     } catch (error) {
-      console.error('❌ Lỗi gọi API /bookings:', error);
+      console.error('Failed to fetch bookings:', error);
       return [];
     }
   },
@@ -190,7 +211,7 @@ const ptService = {
       const response = await axiosClient.get<ReviewAPI[]>('/reviews');
       return response.data ?? [];
     } catch (error) {
-      console.error('❌ Lỗi lấy danh sách review:', error);
+      console.error('Failed to fetch review list:', error);
       return [];
     }
   },

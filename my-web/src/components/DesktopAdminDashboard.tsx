@@ -1,14 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
-import { Users, DollarSign, AlertCircle, Shield, Trash2, FileSpreadsheet, ChevronLeft, ChevronRight } from "lucide-react";
-import { Card } from "./ui/card";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { AlertCircle, ChevronLeft, ChevronRight, DollarSign, FileSpreadsheet, Shield, Trash2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import * as XLSX from 'xlsx';
+import { useToast } from "../context/ToastContext";
+import type { OrderListResponse, User } from "../services/adminService";
 import { adminService } from "../services/adminService";
-import type { User, OrderListResponse } from "../services/adminService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,11 +15,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
-import * as XLSX from 'xlsx';
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 const ITEMS_PER_PAGE = 10;
 
 export function DesktopAdminDashboard() {
+  const { showError, showSuccess } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<OrderListResponse[]>([]);
   const [revenueStats, setRevenueStats] = useState({ totalRevenue: 0, chartData: [] as Array<{ month: string; revenue: number }> });
@@ -31,7 +33,7 @@ export function DesktopAdminDashboard() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<number | null>(null);
   const [selectedYear, setSelectedYear] = useState<number>(2025);
-  
+
   const [usersPage, setUsersPage] = useState(1);
   const [ordersPage, setOrdersPage] = useState(1);
 
@@ -79,9 +81,10 @@ export function DesktopAdminDashboard() {
         if (usersPage > 1 && paginatedUsers.length === 1) {
           setUsersPage(usersPage - 1);
         }
+        showSuccess("User deleted successfully.", "User deleted");
       } catch (error) {
         console.error("Error deleting user:", error);
-        alert("Failed to delete user");
+        showError("Failed to delete user.", "Delete failed");
       }
     }
   };
@@ -89,15 +92,16 @@ export function DesktopAdminDashboard() {
   const handleUpdateOrderStatus = async (orderId: number, newStatus: 'PENDING' | 'FINISHED' | 'CANCELLED') => {
     try {
       await adminService.updateOrderStatus(orderId, newStatus);
-      setOrders(orders.map(order => 
-        order.order.id === orderId 
+      setOrders(orders.map(order =>
+        order.order.id === orderId
           ? { ...order, order: { ...order.order, status: newStatus } }
           : order
       ));
       loadData();
+      showSuccess("Order status updated successfully.", "Order updated");
     } catch (error) {
       console.error("Error updating order status:", error);
-      alert("Failed to update order status");
+      showError("Failed to update order status.", "Update failed");
     }
   };
 
@@ -183,7 +187,7 @@ export function DesktopAdminDashboard() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Users');
-    
+
     const colWidths = [
       { wch: 8 },
       { wch: 25 },
@@ -214,7 +218,7 @@ export function DesktopAdminDashboard() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Orders');
-    
+
     const colWidths = [
       { wch: 8 },
       { wch: 18 },
@@ -241,7 +245,7 @@ export function DesktopAdminDashboard() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Revenue');
-    
+
     const colWidths = [
       { wch: 15 },
       { wch: 20 }
@@ -363,25 +367,25 @@ export function DesktopAdminDashboard() {
             <AreaChart data={revenueStats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 10 }}>
               <defs>
                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.4}/>
-                  <stop offset="95%" stopColor="#FF6A00" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#FF6A00" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#FF6A00" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-              <XAxis 
-                dataKey="month" 
+              <XAxis
+                dataKey="month"
                 stroke="hsl(var(--muted-foreground))"
                 style={{ fontSize: '12px' }}
               />
-              <YAxis 
+              <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 style={{ fontSize: '12px' }}
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--card))', 
-                  border: '1px solid hsl(var(--border))', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}
@@ -392,15 +396,15 @@ export function DesktopAdminDashboard() {
                 labelFormatter={(label) => `Month: ${label}`}
               />
               <Legend />
-              <Area 
-                type="monotone" 
-                dataKey="revenue" 
-                stroke="#FF6A00" 
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                stroke="#FF6A00"
                 strokeWidth={3}
                 fill="url(#colorRevenue)"
                 dot={{ fill: '#FF6A00', r: 5, strokeWidth: 2, stroke: 'white' }}
                 activeDot={{ r: 8, stroke: '#FF6A00', strokeWidth: 2, fill: '#FF6A00' }}
-                name="Revenue (USD)" 
+                name="Revenue (USD)"
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -456,9 +460,9 @@ export function DesktopAdminDashboard() {
                           </TableCell>
                           <TableCell className="text-muted-foreground">{user.phoneNumber || "N/A"}</TableCell>
                           <TableCell className="text-right">
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
+                            <Button
+                              size="sm"
+                              variant="ghost"
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => {
                                 setUserToDelete(user.id);
@@ -585,7 +589,7 @@ export function DesktopAdminDashboard() {
                             <TableCell className="text-right">
                               <Select
                                 value={order.status}
-                                onValueChange={(value: 'PENDING' | 'FINISHED' | 'CANCELLED') => 
+                                onValueChange={(value: 'PENDING' | 'FINISHED' | 'CANCELLED') =>
                                   handleUpdateOrderStatus(order.id, value)
                                 }
                               >

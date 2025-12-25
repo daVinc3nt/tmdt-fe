@@ -13,8 +13,8 @@ export const SEO = ({
     name = 'FitConnect',
     type = 'website'
 }: SEOProps) => {
-    const defaultTitle = "FitConnect - Kết nối Huấn luyện viên Cá nhân & Phòng tập";
-    const defaultDescription = "Tìm kiếm và đặt lịch với PT (Huấn luyện viên cá nhân) chuyên nghiệp hàng đầu. Mua sắm dụng cụ thể thao và thực phẩm bổ sung chính hãng.";
+    const defaultTitle = "FitConnect - Connect with Personal Trainers & Gyms";
+    const defaultDescription = "Find and book sessions with top personal trainers. Shop genuine fitness equipment and supplements.";
 
     const finalTitle = title ? `${title} | ${name}` : defaultTitle;
     const finalDescription = description || defaultDescription;

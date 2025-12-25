@@ -1,4 +1,4 @@
-import { Shield, FileText, HelpCircle, Mail } from "lucide-react";
+import { FileText, HelpCircle, Mail, Shield } from "lucide-react";
 import { MascotLogo } from "./MascotLogo";
 
 interface DesktopFooterProps {
@@ -17,27 +17,27 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
               <span className="text-foreground">FitConnect</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              Sàn giao dịch thể hình tối ưu kết nối huấn luyện viên, phòng tập và những người đam mê thể thao.
+              A fitness marketplace connecting personal trainers, gyms, and fitness enthusiasts.
             </p>
           </div>
 
           {/* Company */}
           <div>
-            <h4 className="text-foreground mb-4">Công ty</h4>
+            <h4 className="text-foreground mb-4">Company</h4>
             <ul className="space-y-2">
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Về chúng tôi
+                  About us
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Tuyển dụng
+                  Careers
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Liên hệ
+                  Contact
                 </button>
               </li>
             </ul>
@@ -45,21 +45,21 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
 
           {/* Support */}
           <div>
-            <h4 className="text-foreground mb-4">Hỗ trợ</h4>
+            <h4 className="text-foreground mb-4">Support</h4>
             <ul className="space-y-2">
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Trung tâm trợ giúp
+                  Help center
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Câu hỏi thường gặp
+                  FAQ
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  An toàn
+                  Safety
                 </button>
               </li>
             </ul>
@@ -67,7 +67,7 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
 
           {/* Legal */}
           <div>
-            <h4 className="text-foreground mb-4">Pháp lý</h4>
+            <h4 className="text-foreground mb-4">Legal</h4>
             <ul className="space-y-2">
               <li>
                 <button
@@ -75,19 +75,19 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
                   className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2"
                 >
                   <Shield className="w-4 h-4" />
-                  Chính sách hoàn tiền
+                  Refund policy
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Điều khoản dịch vụ
+                  Terms of service
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Chính sách bảo mật
+                  Privacy policy
                 </button>
               </li>
             </ul>
@@ -97,7 +97,7 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-border flex items-center justify-between">
           <p className="text-muted-foreground text-sm">
-            © 2024 FitConnect. Đã đăng ký bản quyền.
+            © 2024 FitConnect. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <a href="#" className="text-muted-foreground hover:text-primary transition-colors">

@@ -1,9 +1,9 @@
-import { ShoppingCart, User, Bell, LogOut } from "lucide-react";
-import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { MascotLogo } from "./MascotLogo";
-import { DesktopNotifications } from "./DesktopNotifications";
+import { Bell, LogOut, ShoppingCart, User } from "lucide-react";
 import { useState } from "react";
+import { DesktopNotifications } from "./DesktopNotifications";
+import { MascotLogo } from "./MascotLogo";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 
 interface DesktopHeaderProps {
   userType?: string;
@@ -98,7 +98,7 @@ export function DesktopHeader({
                   </Button>
                 </>
               )}
-              <Button variant="ghost" size="icon" onClick={onNavigateProfile} title="Thông tin tài khoản">
+              <Button variant="ghost" size="icon" onClick={onNavigateProfile} title="Account">
                 <User className="w-5 h-5 text-foreground" />
               </Button>
               {userType === "Admin" ? (

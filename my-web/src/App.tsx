@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { SEO } from "./components/SEO";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { BookingFlow } from "./components/BookingFlow";
 import { DesktopAbout } from "./components/DesktopAbout";
@@ -31,7 +30,9 @@ import { DesktopRefundPolicy } from "./components/DesktopRefundPolicy";
 import { DesktopRegister } from "./components/DesktopRegister";
 import { DesktopUIKit } from "./components/DesktopUIKit";
 import { DesktopUserProfile } from "./components/DesktopUserProfile";
+import { SEO } from "./components/SEO";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { useToast } from "./context/ToastContext";
 
 type Screen = "home" | "featured-trainers" | "gym-centers" | "gym-center-detail" | "profile" | "booking" | "gym-stores" | "gym-store-detail" | "marketplace" | "product-detail" | "cart" | "orders" | "about" | "user-profile" | "my-pt" | "agent-dashboard" | "agent-gym-detail" | "pt-dashboard" | "pt-bookings" | "pt-messages" | "pt-gym-info" | "refund-policy";
 const PrivateRoute = ({ children }: { children: React.ReactElement }) => {
@@ -42,6 +43,7 @@ const PrivateRoute = ({ children }: { children: React.ReactElement }) => {
 
 const MainApp = () => {
   const { user, logout } = useAuth();
+  const { showSuccess } = useToast();
   const [currentScreen, setCurrentScreen] = useState<Screen>("featured-trainers");
 
   if (!user) {
@@ -76,7 +78,7 @@ const MainApp = () => {
       }
       return [...prev, { ...product, quantity, size }];
     });
-    alert("Đã thêm vào giỏ hàng!");
+    showSuccess("Added to cart.", "Cart");
   };
 
   const handleUpdateCartQuantity = (id: any, newQty: number) => {

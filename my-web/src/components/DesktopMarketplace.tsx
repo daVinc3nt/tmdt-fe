@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { Search, Star, ArrowLeft, Loader2 } from "lucide-react"; // Thêm icon Loader2
+import { ArrowLeft, Loader2, Search, Star } from "lucide-react"; // Thêm icon Loader2
+import { useEffect, useState } from "react";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
 // 1. IMPORT SERVICE
 import productService, { type Product as ApiProduct } from "../services/productService";
 // 2. ĐỊNH NGHĨA KIỂU DỮ LIỆU CHO UI (Mở rộng từ API Product)
@@ -63,7 +63,7 @@ export function DesktopMarketplace({ onBack, onProductClick, cartItems, onAddToC
 
         // Check lại lần cuối cho chắc
         if (!Array.isArray(productsData)) {
-          console.error("Dữ liệu nhận được không phải là mảng:", productsData);
+          console.error("Expected an array but received:", productsData);
           setProducts([]);
           return;
         }
@@ -90,8 +90,8 @@ export function DesktopMarketplace({ onBack, onProductClick, cartItems, onAddToC
         setProducts(mappedProducts);
 
       } catch (error) {
-        console.error("❌ Lỗi gọi API:", error);
-        setError("Không thể tải danh sách sản phẩm.");
+        console.error("API request failed:", error);
+        setError("Unable to load product list.");
       } finally {
         setLoading(false);
       }

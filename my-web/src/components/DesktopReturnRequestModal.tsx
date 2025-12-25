@@ -1,12 +1,11 @@
+import { AlertCircle, RotateCcw, Upload, X } from "lucide-react";
 import { useState } from "react";
-import { X, Upload, AlertCircle, RotateCcw } from "lucide-react";
+import { useToast } from "../context/ToastContext";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
-import { Input } from "./ui/input";
-import { Textarea } from "./ui/textarea";
-import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { Textarea } from "./ui/textarea";
 
 interface ReturnRequestModalProps {
   order: any;
@@ -19,6 +18,7 @@ export function DesktopReturnRequestModal({ order, onClose, onSubmit }: ReturnRe
   const [description, setDescription] = useState("");
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [agreedToPolicy, setAgreedToPolicy] = useState(false);
+  const { showError } = useToast();
 
   const returnReasons = [
     "Defective or damaged",
@@ -41,7 +41,7 @@ export function DesktopReturnRequestModal({ order, onClose, onSubmit }: ReturnRe
 
   const handleSubmit = () => {
     if (!returnReason || !description || !agreedToPolicy) {
-      alert("Please fill all required fields and agree to the policy");
+      showError("Please fill all required fields and agree to the policy.", "Missing information");
       return;
     }
 

@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, Star, Calendar, MessageCircle, Heart, MapPin, Trophy, Clock, Loader2 } from "lucide-react";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
+import { ArrowLeft, Calendar, Clock, Heart, Loader2, MessageCircle, Trophy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { ChatWithPTModal } from "./ChatWithPTModal";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { RatePTModal } from "./RatePTModal";
-import { ChatWithPTModal } from "./ChatWithPTModal";
-import { useAuth } from "../context/AuthContext";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
 // Import Service và Interface
 import ptService, { type BookingAPI, type UserAPI } from "../services/ptService";
@@ -26,7 +26,7 @@ const getUserIdFromToken = (token: string | null): number | null => {
     const decoded = JSON.parse(jsonPayload);
     return decoded.userId || null;
   } catch (error) {
-    console.error("Lỗi decode JWT:", error);
+    console.error("JWT decode error:", error);
     return null;
   }
 };
@@ -46,8 +46,8 @@ interface MyTrainerUI {
   location: string;
   image: string;
   sessionsCompleted: number;
-  nextSession: string; 
-  statusNext: string; 
+  nextSession: string;
+  statusNext: string;
   isFavorite: boolean;
   lastBooked: string;
   rawNextSessionDate?: Date;
@@ -58,7 +58,7 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState<any>(null);
-  
+
   const [myTrainers, setMyTrainers] = useState<MyTrainerUI[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({ totalSessions: 0, upcomingSessions: 0, favoritePTs: 0, hoursTrained: 0 });
@@ -70,8 +70,8 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
       if (isNaN(date.getTime())) return "N/A";
       const now = new Date();
       const diffDays = Math.ceil(Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-      if (diffDays <= 1) return "Gần đây";
-      return `${diffDays} ngày trước`;
+      if (diffDays <= 1) return "Recently";
+      return `${diffDays} days ago`;
     } catch { return "N/A"; }
   };
 
@@ -79,9 +79,9 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
   const formatNextSession = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "Chưa xác định";
-      return date.toLocaleDateString('vi-VN') + " lúc " + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    } catch { return "Chưa xác định"; }
+      if (isNaN(date.getTime())) return "TBD";
+      return date.toLocaleDateString('en-US') + " at " + date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch { return "TBD"; }
   };
 
   useEffect(() => {
@@ -91,15 +91,15 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
         // 1. Lấy traineeId từ JWT token
         const traineeId = getUserIdFromToken(token);
         if (!traineeId) {
-          console.error("Không thể lấy traineeId từ token");
+          console.error("Unable to get traineeId from token");
           setMyTrainers([]);
           setStats({ totalSessions: 0, upcomingSessions: 0, favoritePTs: 0, hoursTrained: 0 });
           return;
         }
 
         // 2. Gọi API lấy bookings theo traineeId
-        const bookings = await ptService.getMyBookings(traineeId); 
-        console.log("Dữ liệu nhận được từ API /bookings/{traineeId}:", bookings);
+        const bookings = await ptService.getMyBookings(traineeId);
+        console.log("Bookings data from API /bookings/{traineeId}:", bookings);
 
         if (!bookings || bookings.length === 0) {
           setMyTrainers([]);
@@ -109,9 +109,9 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
 
         // 2. Gom nhóm theo Trainer ID (Dùng b.trainer theo JSON API)
         const trainerMap = new Map<number, { info: UserAPI, bookings: BookingAPI[] }>();
-        
+
         bookings.forEach((b: any) => {
-          const trainerInfo = b.bookingPackage?.trainer_id;
+          const trainerInfo = b.bookingPackage?.trainer_id || b.bookingPackage?.trainer;
           if (!trainerInfo?.id) return;
 
           if (!trainerMap.has(trainerInfo.id)) {
@@ -128,41 +128,41 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
         // 3. Biến đổi dữ liệu Map sang mảng UI
         const trainersList = Array.from(trainerMap.values()).map(
           ({ info, bookings: tBookings }) => {
-        
+
             const sorted = [...tBookings].sort(
               (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
             );
-        
+
             const nextB = sorted.find(
               b => b.status === "PENDING" || b.status === "CONFIRMED"
             );
-        
+
             return {
               id: info.id,
               name: info.fullName,
-              specialty: info.specialty ?? "Huấn luyện viên cá nhân",
-              location: info.address ?? "Việt Nam",
+              specialty: info.specialty ?? "Personal Trainer",
+              location: info.address ?? "Vietnam",
               image: `https://ui-avatars.com/api/?name=${encodeURIComponent(info.fullName)}&background=random&size=200`,
               rating: 5,
               reviews: 0,
               isFavorite: false,
               sessionsCompleted: tBookings.filter(b => b.status === "COMPLETED").length,
-              nextSession: nextB ? formatNextSession(nextB.date) : "Chưa có lịch",
+              nextSession: nextB ? formatNextSession(nextB.date) : "No upcoming sessions",
               statusNext: nextB?.status ?? "",
               lastBooked: formatTimeAgo(sorted[0].date),
               rawNextSessionDate: nextB ? new Date(nextB.date) : undefined
             };
           }
         );
-        
+
 
         // 4. Sắp xếp PT: Ai có lịch gần nhất thì lên đầu
-        const finalSorted = trainersList.sort((a, b) => 
+        const finalSorted = trainersList.sort((a, b) =>
           (a.rawNextSessionDate?.getTime() || Infinity) - (b.rawNextSessionDate?.getTime() || Infinity)
         );
 
         setMyTrainers(finalSorted);
-        
+
         // 5. Tính toán Stats dựa trên toàn bộ bookings nhận được
         setStats({
           totalSessions: bookings.filter(b => b.status === "COMPLETED").length,
@@ -172,7 +172,7 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
         });
 
       } catch (e) {
-        console.error("Lỗi fetch data MyPT:", e);
+        console.error("Failed to fetch MyPT data:", e);
       } finally {
         setIsLoading(false);
       }
@@ -185,21 +185,21 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
       {/* Header */}
       <div className="max-w-7xl mx-auto">
         <Button variant="ghost" onClick={onBack} className="mb-6 gap-2">
-          <ArrowLeft className="w-4 h-4" /> Quay lại Home
+          <ArrowLeft className="w-4 h-4" /> Back to Home
         </Button>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Huấn luyện viên của tôi</h1>
-          <p className="text-muted-foreground">Các huấn luyện viên bạn đã đặt lịch tập luyện (Sắp tới: {stats.upcomingSessions})</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">My trainers</h1>
+          <p className="text-muted-foreground">Trainers you have booked sessions with (Upcoming: {stats.upcomingSessions})</p>
         </div>
 
         {/* Stats Section */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Tổng số buổi", val: stats.totalSessions, icon: Trophy, color: "text-primary", bg: "bg-primary/10" },
-            { label: "Sắp tới", val: stats.upcomingSessions, icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
-            { label: "Yêu thích", val: stats.favoritePTs, icon: Heart, color: "text-green-500", bg: "bg-green-500/10" },
-            { label: "Giờ tập", val: stats.hoursTrained, icon: Clock, color: "text-purple-500", bg: "bg-purple-500/10" }
+            { label: "Total sessions", val: stats.totalSessions, icon: Trophy, color: "text-primary", bg: "bg-primary/10" },
+            { label: "Upcoming", val: stats.upcomingSessions, icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
+            { label: "Favorites", val: stats.favoritePTs, icon: Heart, color: "text-green-500", bg: "bg-green-500/10" },
+            { label: "Hours trained", val: stats.hoursTrained, icon: Clock, color: "text-purple-500", bg: "bg-purple-500/10" }
           ].map((s, i) => (
             <Card key={i} className="p-6 border-border bg-card">
               <div className="flex items-center gap-4">
@@ -237,32 +237,32 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
                           <p className="text-muted-foreground text-sm">{trainer.specialty} • {trainer.location}</p>
                         </div>
                         {trainer.statusNext === "PENDING" && (
-                          <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-200">Đang chờ duyệt</Badge>
+                          <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-200">Pending</Badge>
                         )}
                         {trainer.statusNext === "CONFIRMED" && (
-                          <Badge className="bg-green-500/10 text-green-600 border-green-200">Đã xác nhận</Badge>
+                          <Badge className="bg-green-500/10 text-green-600 border-green-200">Confirmed</Badge>
                         )}
                       </div>
 
                       <div className="grid grid-cols-3 gap-6 mb-6">
                         <div>
-                          <p className="text-muted-foreground text-xs uppercase">Đã hoàn thành</p>
-                          <p className="font-bold text-foreground">{trainer.sessionsCompleted} buổi</p>
+                          <p className="text-muted-foreground text-xs uppercase">Completed</p>
+                          <p className="font-bold text-foreground">{trainer.sessionsCompleted} sessions</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground text-xs uppercase">Đặt gần nhất</p>
+                          <p className="text-muted-foreground text-xs uppercase">Last booked</p>
                           <p className="font-bold text-foreground">{trainer.lastBooked}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground text-xs uppercase">Lịch tiếp theo</p>
+                          <p className="text-muted-foreground text-xs uppercase">Next session</p>
                           <p className="font-bold text-primary">{trainer.nextSession}</p>
                         </div>
                       </div>
 
                       <div className="flex gap-3">
-                        <Button className="flex-1 font-bold" onClick={() => onBookSession(trainer.id)}>Đặt lịch lại</Button>
-                        <Button variant="outline" className="flex-1" onClick={() => { setSelectedTrainer(trainer); setRateModalOpen(true); }}>Đánh giá</Button>
-                        <Button variant="outline" onClick={() => onTrainerSelect(trainer.id)}>Hồ sơ</Button>
+                        <Button className="flex-1 font-bold" onClick={() => onBookSession(trainer.id)}>Book again</Button>
+                        <Button variant="outline" className="flex-1" onClick={() => { setSelectedTrainer(trainer); setRateModalOpen(true); }}>Rate</Button>
+                        <Button variant="outline" onClick={() => onTrainerSelect(trainer.id)}>Profile</Button>
                         <Button variant="outline" size="icon" onClick={() => { setSelectedTrainer(trainer); setChatModalOpen(true); }}>
                           <MessageCircle className="w-5 h-5 text-foreground" />
                         </Button>
@@ -274,9 +274,9 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
             ) : (
               <Card className="p-20 text-center border-dashed border-2 bg-card">
                 <Heart className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <h3 className="text-lg font-bold mb-2">Bạn chưa có huấn luyện viên nào</h3>
-                <p className="text-muted-foreground mb-6">Hãy bắt đầu đặt lịch để huấn luyện viên xuất hiện tại đây.</p>
-                <Button onClick={onBack}>Tìm huấn luyện viên</Button>
+                <h3 className="text-lg font-bold mb-2">You don't have any trainers yet</h3>
+                <p className="text-muted-foreground mb-6">Start booking sessions to see your trainers here.</p>
+                <Button onClick={onBack}>Find trainers</Button>
               </Card>
             )}
           </div>
@@ -286,19 +286,19 @@ export function DesktopMyPT({ onBack, onTrainerSelect, onBookSession }: DesktopM
       {/* Modals */}
       {selectedTrainer && (
         <>
-          <RatePTModal 
-            isOpen={rateModalOpen} 
-            onClose={() => {setRateModalOpen(false); setSelectedTrainer(null);}} 
+          <RatePTModal
+            isOpen={rateModalOpen}
+            onClose={() => { setRateModalOpen(false); setSelectedTrainer(null); }}
             trainerId={selectedTrainer.id}
-            trainerName={selectedTrainer.name} 
-            trainerImage={selectedTrainer.image} 
+            trainerName={selectedTrainer.name}
+            trainerImage={selectedTrainer.image}
           />
-          <ChatWithPTModal 
-            isOpen={chatModalOpen} 
-            onClose={() => {setChatModalOpen(false); setSelectedTrainer(null);}} 
-            trainerName={selectedTrainer.name} 
-            trainerImage={selectedTrainer.image} 
-            trainerId={selectedTrainer.id} 
+          <ChatWithPTModal
+            isOpen={chatModalOpen}
+            onClose={() => { setChatModalOpen(false); setSelectedTrainer(null); }}
+            trainerName={selectedTrainer.name}
+            trainerImage={selectedTrainer.image}
+            trainerId={selectedTrainer.id}
           />
         </>
       )}
