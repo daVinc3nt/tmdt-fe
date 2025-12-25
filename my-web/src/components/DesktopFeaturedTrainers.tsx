@@ -95,13 +95,13 @@ export function DesktopFeaturedTrainers({
   }, []);
 
   const categories = [
-    { id: "top", label: "Top Trainers" },
-    { id: "all", label: "All Trainers" },
-    { id: "Strength", label: "Strength" },
+    { id: "top", label: "HLV Hàng đầu" },
+    { id: "all", label: "Tất cả HLV" },
+    { id: "Strength", label: "Thể lực" },
     { id: "CrossFit", label: "CrossFit" },
     { id: "Yoga", label: "Yoga" },
     { id: "Boxing", label: "Boxing" },
-    { id: "Bodybuilding", label: "Bodybuilding" }
+    { id: "Bodybuilding", label: "Thể hình" }
   ];
 
   const filteredTrainers = trainers.filter(trainer => {
@@ -143,18 +143,18 @@ export function DesktopFeaturedTrainers({
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="grid grid-cols-2 gap-12 items-center">
             <div>
-              <h1 className="text-foreground mb-4">Connect with Elite Trainers</h1>
+              <h1 className="text-foreground mb-4">Kết nối với Huấn luyện viên hàng đầu</h1>
               <p className="text-muted-foreground text-lg mb-8">
-                Connect with elite personal trainers and access premium gym equipment. Start your transformation today.
+                Kết nối với các huấn luyện viên cá nhân ưu tú và tiếp cận thiết bị phòng tập cao cấp. Bắt đầu hành trình thay đổi của bạn ngay hôm nay.
               </p>
 
               <div className="flex gap-4 mb-12">
                 <Button className="bg-primary text-white gap-2" size="lg" onClick={onViewGyms}>
                   <Dumbbell className="w-5 h-5" />
-                  Find a Trainer
+                  Tìm Huấn luyện viên
                 </Button>
                 <Button variant="outline" size="lg" onClick={onShopProducts}>
-                  Shop Products
+                  Mua sắm sản phẩm
                 </Button>
               </div>
 
@@ -164,21 +164,21 @@ export function DesktopFeaturedTrainers({
                     <span className="text-primary text-3xl">{trainers.length}+</span>
                     <TrendingUp className="w-5 h-5 text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Active Trainers</p>
+                  <p className="text-muted-foreground text-sm">HLV đang hoạt động</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-primary text-3xl">12K+</span>
                     <TrendingUp className="w-5 h-5 text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Happy Clients</p>
+                  <p className="text-muted-foreground text-sm">Khách hàng hài lòng</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-primary text-3xl">4.9</span>
                     <Star className="w-5 h-5 fill-primary text-primary" />
                   </div>
-                  <p className="text-muted-foreground text-sm">Average Rating</p>
+                  <p className="text-muted-foreground text-sm">Đánh giá trung bình</p>
                 </div>
               </div>
             </div>
@@ -259,13 +259,13 @@ export function DesktopFeaturedTrainers({
           <div className="flex items-center gap-3">
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-[180px] bg-card border-border" aria-label="Sort trainers">
-                <SelectValue placeholder="Sort by" />
+                <SelectValue placeholder="Sắp xếp theo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="highest">Highest Rated</SelectItem>
-                <SelectItem value="lowest">Lowest Rated</SelectItem>
-                <SelectItem value="price-low">Price: Low to High</SelectItem>
-                <SelectItem value="price-high">Price: High to Low</SelectItem>
+                <SelectItem value="highest">Đánh giá cao nhất</SelectItem>
+                <SelectItem value="lowest">Đánh giá thấp nhất</SelectItem>
+                <SelectItem value="price-low">Giá: Thấp đến Cao</SelectItem>
+                <SelectItem value="price-high">Giá: Cao đến Thấp</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" aria-label="Show filter options">
@@ -277,7 +277,7 @@ export function DesktopFeaturedTrainers({
         <div className="mb-6 flex items-center gap-2">
           <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
           <span className="font-bold text-lg">Danh sách Huấn Luyện Viên</span>
-          <span className="text-muted-foreground ml-2">({filteredTrainers.length} available)</span>
+          <span className="text-muted-foreground ml-2">({filteredTrainers.length} hiện có)</span>
         </div>
 
         <div className="grid grid-cols-4 gap-6">
@@ -351,7 +351,7 @@ export function DesktopFeaturedTrainers({
                       size="sm"
                       className="bg-primary text-white"
                     >
-                      Book
+                      Đặt lịch
                     </Button>
                   </div>
                 </div>
@@ -363,8 +363,8 @@ export function DesktopFeaturedTrainers({
         {filteredTrainers.length === 0 && !loading && (
           <Card className="p-12 text-center border-border bg-card">
             <Users className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-foreground mb-2">No Trainers Found</h3>
-            <p className="text-muted-foreground">Try adjusting your filters</p>
+            <h3 className="text-foreground mb-2">Không tìm thấy Huấn luyện viên nào</h3>
+            <p className="text-muted-foreground">Hãy thử điều chỉnh bộ lọc của bạn</p>
           </Card>
         )}
       </div>

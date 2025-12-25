@@ -17,27 +17,27 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
               <span className="text-foreground">FitConnect</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              Your ultimate fitness marketplace connecting trainers, gyms, and fitness enthusiasts.
+              Sàn giao dịch thể hình tối ưu kết nối huấn luyện viên, phòng tập và những người đam mê thể thao.
             </p>
           </div>
 
           {/* Company */}
           <div>
-            <h4 className="text-foreground mb-4">Company</h4>
+            <h4 className="text-foreground mb-4">Công ty</h4>
             <ul className="space-y-2">
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  About Us
+                  Về chúng tôi
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Careers
+                  Tuyển dụng
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Contact
+                  Liên hệ
                 </button>
               </li>
             </ul>
@@ -45,21 +45,21 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
 
           {/* Support */}
           <div>
-            <h4 className="text-foreground mb-4">Support</h4>
+            <h4 className="text-foreground mb-4">Hỗ trợ</h4>
             <ul className="space-y-2">
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Help Center
+                  Trung tâm trợ giúp
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  FAQ
+                  Câu hỏi thường gặp
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors">
-                  Safety
+                  An toàn
                 </button>
               </li>
             </ul>
@@ -67,7 +67,7 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
 
           {/* Legal */}
           <div>
-            <h4 className="text-foreground mb-4">Legal</h4>
+            <h4 className="text-foreground mb-4">Pháp lý</h4>
             <ul className="space-y-2">
               <li>
                 <button
@@ -75,19 +75,19 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
                   className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2"
                 >
                   <Shield className="w-4 h-4" />
-                  Refund Policy
+                  Chính sách hoàn tiền
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Terms of Service
+                  Điều khoản dịch vụ
                 </button>
               </li>
               <li>
                 <button className="text-muted-foreground text-sm hover:text-primary transition-colors flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Privacy Policy
+                  Chính sách bảo mật
                 </button>
               </li>
             </ul>
@@ -97,7 +97,7 @@ export function DesktopFooter({ onRefundPolicyClick }: DesktopFooterProps) {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-border flex items-center justify-between">
           <p className="text-muted-foreground text-sm">
-            © 2024 FitConnect. All rights reserved.
+            © 2024 FitConnect. Đã đăng ký bản quyền.
           </p>
           <div className="flex items-center gap-4">
             <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
