@@ -11,6 +11,8 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Separator } from "./ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import axiosClient from "@/services/axiosClient";
+import { useNavigate } from "react-router-dom";
 
 // Helper function to decode JWT and get userId
 const getUserIdFromToken = (token: string | null): number | null => {
@@ -42,6 +44,7 @@ interface DesktopCartProps {
 }
 
 export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, onRemoveItem, onClearCart }: DesktopCartProps) {
+  const navigate = useNavigate();
   const { token, user } = useAuth();
   const { showError, showSuccess } = useToast();
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'checkout'>('cart');
@@ -64,6 +67,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
         setLoadingHistory(true);
         const response = await orderService.getOrdersByUserId(userId);
         const data = (response as any).data || response;
+        console.log("Order history data:", data);
         setOrderHistory(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Failed to fetch order history:", error);
@@ -100,6 +104,9 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
   const tax = (subtotal - discount) * 0.08;
   const total = subtotal - discount + shipping + tax;
 
+  // State QR
+  const [vietQr, setVietQr] = useState(null);
+  const [orderId, setOrderId] = useState(null);
   // --- SUBMIT ORDER TO API ---
   const handlePayment = async () => {
     if (!shippingInfo.fullName || !shippingInfo.phone || !shippingInfo.address) {
@@ -128,9 +135,20 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
         paymentMethod: paymentMethod.toUpperCase()
       };
 
-      await orderService.createOrder(orderRequest as any);
-
+      const orderRes = await orderService.createOrder(orderRequest as any);
+      setOrderId(orderRes.id);
       if (paymentMethod === 'banking') {
+        // Call api 
+        const payload = {
+          userId: userId,
+          orderId: orderRes.id,
+          amount: total,
+          currency: "VND",
+          description: "Phong"
+        }
+        const qr = await axiosClient.post('/payments/vietqr', payload);
+        console.log("qrRes: ", qr);
+        setVietQr(qr.data.qrImageUrl)
         setIsQRPage(true);
       } else {
         showSuccess("Your order has been placed successfully.", "Order placed");
@@ -149,11 +167,30 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
     }
   };
 
-  const completeOrder = () => {
-    onClearCart();
-    setCheckoutStep('cart');
-    setIsQRPage(false);
-    onCheckout();
+  const completeOrder = async () => {
+
+    try {
+      const verify = await axiosClient.get(`/payments/verify`, {
+        params: {
+          orderId: orderId
+        }
+      });
+      console.log("veri1fy: ", verify);
+      if (verify.status === 200) {
+        onClearCart();
+        setCheckoutStep('cart');
+        setIsQRPage(false);
+        onCheckout();
+        setOrderId(null);
+        setVietQr(null);
+        showSuccess("Thanh toán thành công!", "Thanh toán thành công");
+        navigate("/home");
+      }
+    } catch (error) {
+      alert("Chưa thanh toán! Vui lòng hoàn tất thanh toán trước khi xác nhận.");
+      console.error("Complete order error:", error);
+    }
+
   };
 
   // RENDER SECTION
@@ -181,7 +218,7 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
             <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" className="h-12 w-12 object-contain mb-2" />
             <h2 className="text-xl font-bold mb-8 text-zinc-800">Scan MoMo QR to pay</h2>
             <div className="p-4 border-2 border-zinc-100 rounded-2xl bg-white shadow-lg mb-6">
-              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=FitConnect_Payment_${total}`} alt="QR" className="w-48 h-48" />
+              <img src={vietQr || ""} alt="QR" className="w-48 h-48" />
             </div>
             <div className="flex items-center gap-3 text-sm text-zinc-500 mb-8">
               <Loader2 className="w-4 h-4 animate-spin text-[#A50064]" /> <p>Waiting for confirmation...</p>
@@ -321,20 +358,20 @@ export function DesktopCart({ cartItems, onBack, onCheckout, onUpdateQuantity, o
                 <Card key={order.id} className="p-6 border-zinc-200 hover:border-orange-200 transition-colors">
                   <div className="flex justify-between mb-4">
                     <div className="flex flex-col">
-                      <span className="font-bold text-lg text-zinc-800">Order ID: #ORD-{order.id}</span>
-                      <span className="text-xs text-muted-foreground">Placed on: {new Date(order.orderDate || Date.now()).toLocaleDateString('en-US')}</span>
+                      <span className="font-bold text-lg text-zinc-800">Order ID: #ORD-{order.order.id}</span>
+                      <span className="text-xs text-muted-foreground">Placed on: {new Date(order.order.orderDate || Date.now()).toLocaleDateString('en-US')}</span>
                     </div>
-                    <Badge className={order.status === 'CANCELLED' ? "bg-red-500" : "bg-green-500"}>{order.status}</Badge>
+                    <Badge className={order.order.status === 'CANCELLED' ? "bg-red-500" : "bg-green-500"}>{order.order.status}</Badge>
                   </div>
                   <div className="flex gap-4 items-center border-t pt-4">
                     <div className="bg-orange-100 p-3 rounded-xl"><ShoppingBag className="w-6 h-6 text-orange-600" /></div>
                     <div className="flex-1">
                       <p className="font-medium">FitConnect order</p>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{order.shippingAddress}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-1">{order.order.shippingAddress}</p>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-orange-600 text-lg">{order.totalAmount?.toLocaleString()}đ</div>
-                      <p className="text-[10px] text-muted-foreground uppercase">{order.paymentMethod}</p>
+                      <div className="font-bold text-orange-600 text-lg">{order.order.totalPrice?.toLocaleString()}đ</div>
+                      <p className="text-[10px] text-muted-foreground uppercase">{order.order.paymentMethod}</p>
                     </div>
                   </div>
                 </Card>

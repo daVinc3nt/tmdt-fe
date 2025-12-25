@@ -6,7 +6,7 @@ const DEFAULT_PROD_BASE_URL = 'https://ecommerce.orangedesert-3e8e63bd.eastasia.
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? DEFAULT_DEV_BASE_URL : DEFAULT_PROD_BASE_URL);
 
 const axiosClient = axios.create({
-  baseURL: BASE_URL,
+  baseURL: DEFAULT_DEV_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
