@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const axiosClient = axios.create({
-  baseURL: 'https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io/api',
+  baseURL: 'https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io',
   headers: {
     'Content-Type': 'application/json',
   },
