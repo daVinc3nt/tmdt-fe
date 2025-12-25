@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io/api";
 
 export const apiCall = async (
   method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -6,7 +6,7 @@ export const apiCall = async (
   data?: Record<string, any>
 ): Promise<any> => {
   const url = `${API_BASE_URL}${endpoint}`;
-  
+
   try {
     const options: RequestInit = {
       method,
