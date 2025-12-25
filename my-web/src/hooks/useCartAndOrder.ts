@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'https://ecommerce.orangedesert-3e8e63bd.eastasia.azurecontainerapps.io';
 
 export const useCart = (userId: number) => {
   const [cartItems, setCartItems] = useState<any[]>([]);
