@@ -18,7 +18,7 @@ import {
 
 // 2. FIX LỖI XUẤT KHẨU (EXPORT):
 // Giữ lại dòng này để tránh crash các file khác đang import nó (như Profile)
-export const allTrainers: any[] = []; 
+export const allTrainers: any[] = [];
 
 // 3. FIX LỖI INTERFACE: Thêm image?: string
 interface UITrainer extends Trainer {
@@ -48,9 +48,9 @@ export function DesktopFeaturedTrainers({
   onProductClick
 }: DesktopFeaturedTrainersProps) {
   const [trainers, setTrainers] = useState<UITrainer[]>([]);
-  const [products, setProducts] = useState<any[]>([]); 
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState("highest");
   const [favorites, setFavorites] = useState<number[]>([]);
@@ -59,7 +59,7 @@ export function DesktopFeaturedTrainers({
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Gọi API
         const [ptData, productResponse] = await Promise.all([
           ptService.getAllTrainers(),
@@ -71,10 +71,10 @@ export function DesktopFeaturedTrainers({
           ...pt,
           gym: "FitConnect Center",
           gymLogo: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=200",
-          price: Math.floor(Math.random() * (100 - 50) + 50), 
+          price: Math.floor(Math.random() * (100 - 50) + 50),
           location: ["Hồ Chí Minh", "Hà Nội", "Đà Nẵng"][Math.floor(Math.random() * 3)],
           reviews: Math.floor(Math.random() * 300),
-          featured: Math.random() > 0.7, 
+          featured: Math.random() > 0.7,
           favorite: false,
           image: pt.avatar // Gán avatar từ API vào field image của UI
         }));
@@ -119,7 +119,7 @@ export function DesktopFeaturedTrainers({
   const toggleFavorite = (trainerId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites(prev =>
-      prev.includes(trainerId) 
+      prev.includes(trainerId)
         ? prev.filter(id => id !== trainerId)
         : [...prev, trainerId]
     );
@@ -147,7 +147,7 @@ export function DesktopFeaturedTrainers({
               <p className="text-muted-foreground text-lg mb-8">
                 Connect with elite personal trainers and access premium gym equipment. Start your transformation today.
               </p>
-              
+
               <div className="flex gap-4 mb-12">
                 <Button className="bg-primary text-white gap-2" size="lg" onClick={onViewGyms}>
                   <Dumbbell className="w-5 h-5" />
@@ -186,7 +186,9 @@ export function DesktopFeaturedTrainers({
             <div className="relative h-[400px] rounded-[20px] overflow-hidden shadow-xl">
               <ImageWithFallback
                 src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800"
-                alt="Fitness training"
+                alt="Fitness training banner showing trainer and equipment"
+                fetchPriority="high"
+                loading="eager"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -197,42 +199,43 @@ export function DesktopFeaturedTrainers({
       {/* Best Sellers Section */}
       <div className="max-w-7xl mx-auto px-6 pt-12">
         <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-                <ShoppingBag className="w-6 h-6 text-primary" />
-                <h2 className="text-2xl font-bold text-foreground">Sản phẩm nổi bật</h2>
-            </div>
-            <Button variant="ghost" onClick={onShopProducts} className="text-primary gap-1">
-                Xem tất cả <ArrowRight className="w-4 h-4" />
-            </Button>
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-6 h-6 text-primary" />
+            <h2 className="text-2xl font-bold text-foreground">Sản phẩm nổi bật</h2>
+          </div>
+          <Button variant="ghost" onClick={onShopProducts} className="text-primary gap-1" aria-label="Xem tất cả sản phẩm">
+            Xem tất cả <ArrowRight className="w-4 h-4" />
+          </Button>
         </div>
-        
+
         {products.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {products.map((product) => (
-                    <div key={product.id} onClick={() => onProductClick && onProductClick(product.id)} className="cursor-pointer group">
-                        <Card className="overflow-hidden border-border bg-card hover:shadow-lg transition-all h-full">
-                            <div className="relative h-48 overflow-hidden bg-muted">
-                                 <ImageWithFallback 
-                                    src={product.image || "https://via.placeholder.com/300"} 
-                                    alt={product.name}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                                 />
-                                 <Badge className="absolute top-2 left-2 bg-red-500 hover:bg-red-600">Hot</Badge>
-                            </div>
-                            <div className="p-4">
-                                <p className="text-xs text-muted-foreground mb-1">{product.category || "General"}</p>
-                                <h3 className="font-semibold truncate mb-2 text-foreground">{product.name}</h3>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-lg font-bold text-primary">{parseInt(product.price).toLocaleString()}đ</span>
-                                    <Button size="sm" variant="secondary" className="hover:bg-primary hover:text-white transition-colors">Mua ngay</Button>
-                                </div>
-                            </div>
-                        </Card>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {products.map((product) => (
+              <div key={product.id} onClick={() => onProductClick && onProductClick(product.id)} className="cursor-pointer group">
+                <Card className="overflow-hidden border-border bg-card hover:shadow-lg transition-all h-full">
+                  <div className="relative h-48 overflow-hidden bg-muted">
+                    <ImageWithFallback
+                      src={product.image || "https://via.placeholder.com/300"}
+                      alt={`Hình ảnh sản phẩm ${product.name}`}
+                      loading="lazy"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <Badge className="absolute top-2 left-2 bg-red-500 hover:bg-red-600">Hot</Badge>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">{product.category || "General"}</p>
+                    <h3 className="font-semibold truncate mb-2 text-foreground">{product.name}</h3>
+                    <div className="flex items-center justify-between">
+                      <span className="text-lg font-bold text-primary">{parseInt(product.price).toLocaleString()}đ</span>
+                      <Button size="sm" variant="secondary" className="hover:bg-primary hover:text-white transition-colors">Mua ngay</Button>
                     </div>
-                ))}
-            </div>
+                  </div>
+                </Card>
+              </div>
+            ))}
+          </div>
         ) : (
-             <p className="text-muted-foreground">Chưa có sản phẩm nào.</p>
+          <p className="text-muted-foreground">Chưa có sản phẩm nào.</p>
         )}
       </div>
 
@@ -246,6 +249,7 @@ export function DesktopFeaturedTrainers({
                 variant={selectedCategory === cat.id ? "default" : "outline"}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={selectedCategory === cat.id ? "bg-primary text-white" : ""}
+                aria-label={`Filter by category ${cat.label}`}
               >
                 {cat.label}
               </Button>
@@ -254,7 +258,7 @@ export function DesktopFeaturedTrainers({
 
           <div className="flex items-center gap-3">
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[180px] bg-card border-border">
+              <SelectTrigger className="w-[180px] bg-card border-border" aria-label="Sort trainers">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
@@ -264,21 +268,21 @@ export function DesktopFeaturedTrainers({
                 <SelectItem value="price-high">Price: High to Low</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" aria-label="Show filter options">
               <Filter className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
         <div className="mb-6 flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-            <span className="font-bold text-lg">Danh sách Huấn Luyện Viên</span>
-            <span className="text-muted-foreground ml-2">({filteredTrainers.length} available)</span>
+          <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+          <span className="font-bold text-lg">Danh sách Huấn Luyện Viên</span>
+          <span className="text-muted-foreground ml-2">({filteredTrainers.length} available)</span>
         </div>
 
         <div className="grid grid-cols-4 gap-6">
           {filteredTrainers.map((trainer) => (
-            <div 
+            <div
               key={trainer.id}
               onClick={() => onTrainerClick(trainer.id)}
               className="cursor-pointer"
@@ -290,17 +294,16 @@ export function DesktopFeaturedTrainers({
                     alt={trainer.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                  
+
                   <button
                     onClick={(e) => toggleFavorite(trainer.id, e)}
                     className="absolute top-3 right-3 w-10 h-10 rounded-full bg-primary hover:bg-primary/90 flex items-center justify-center transition-colors shadow-lg"
                   >
-                    <Heart 
-                      className={`w-5 h-5 ${
-                        favorites.includes(trainer.id) || trainer.favorite
-                          ? "fill-white text-white" 
-                          : "text-white"
-                      }`} 
+                    <Heart
+                      className={`w-5 h-5 ${favorites.includes(trainer.id) || trainer.favorite
+                        ? "fill-white text-white"
+                        : "text-white"
+                        }`}
                     />
                   </button>
 
@@ -318,14 +321,14 @@ export function DesktopFeaturedTrainers({
                 <div className="p-5">
                   <h3 className="text-foreground mb-1">{trainer.name}</h3>
                   <p className="text-muted-foreground text-sm mb-2">{trainer.specialization}</p>
-                  
+
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 fill-primary text-primary" />
                       <span className="text-foreground text-sm">{trainer.rating}</span>
                     </div>
                     <div className="text-muted-foreground text-sm">
-                        • {trainer.experience} năm KN
+                      • {trainer.experience} năm KN
                     </div>
                     <span className="text-muted-foreground text-sm">({trainer.reviews} reviews)</span>
                   </div>
